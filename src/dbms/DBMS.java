@@ -181,8 +181,8 @@ public class DBMS {
         LinkedList<String> catalog = readFile(SYSTEM_CATALOG_FILENAME.split("\\.")[0]);
         String catalogHeader = catalog.get(0), systemName = stringToName(catalogHeader.substring(0, SYSTEM_NAME_LENGTH));
         int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_TYPES_LENGTH));
-        for (int i = 1; i <= numberOfTypes; i++) {
-            if (catalog.get(i).equals(typeName)) {
+        for (Iterator<String> iterator = catalog.iterator(); iterator.hasNext();) {
+            if (iterator.next().equals(typeName)) {
                 System.out.println("ERROR: Type already exists.");
                 return;
             }
@@ -310,8 +310,8 @@ public class DBMS {
         String catalogHeader = catalog.get(0), systemName = stringToName(catalogHeader.substring(0, SYSTEM_NAME_LENGTH));
         int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_TYPES_LENGTH));
         boolean existType = false;
-        for (int i = 1; i <= numberOfTypes; i++) {
-            if (typeName.equals(catalog.get(i))) {
+        for (Iterator<String> iterator = catalog.iterator(); iterator.hasNext();) {
+            if (iterator.next().equals(typeName)) {
                 existType = true;
                 LinkedList<String> oldFile = readFile(typeName), file = new LinkedList<>();
                 String oldFileHeader = oldFile.get(0), fileHeader = dataToString(0, USAGE_STATUS_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
@@ -321,7 +321,7 @@ public class DBMS {
                         + dataToString(0, NUMBER_OF_RECORDS_LENGTH) + dataToString(0, NUMBER_OF_RECORDS_LENGTH);
                 file.add(pageHeader);
                 writeFile(typeName, file);
-                catalog.remove(i);
+                iterator.remove();
                 System.out.println("Type is deleted.");
                 break;
             }
@@ -343,30 +343,28 @@ public class DBMS {
         String catalogHeader = readCatalog.nextLine();
         int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_TYPES_LENGTH));
         boolean exist = false;
+        label:
         for (int i = 0; i < numberOfTypes; i++) {
             if (typeName.equals(readCatalog.nextLine())) {
                 exist = true;
-                LinkedList<String> file = readFile(typeName);
-                int cursor = 0;
-                String fileHeader = file.get(cursor);
-                int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
+                Iterator<String> iterator = readFile(typeName).iterator();
+                String fileHeader = iterator.next();
                 int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
                         USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
-                for (int j = 0; j < numberOfPages; j++) {
-                    cursor = j * PAGE_LENGTH + 1;
-                    String pageHeader = file.get(cursor);
+                while(iterator.hasNext()) {
+                    String pageHeader = iterator.next();
                     System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                             UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-                    if (numberOfActiveRecords == 0) {
-                        break;
-                    }
-                    for (int k = 1; k <= numberOfActiveRecords; k++) {
-                        String record = file.get(cursor + k);
-                        for (int l = 0; l < numberOfFields; l++) {
-                            System.out.print(stringToData(record.substring(l * FIELD_DATA_LENGTH + 1, (l + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
+                    for (int j = 1; j <= numberOfActiveRecords; j++) {
+                        String record = iterator.next();
+                        for (int k = 0; k < numberOfFields; k++) {
+                            System.out.print(stringToData(record.substring(k * FIELD_DATA_LENGTH + 1, (k + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
                         }
                         System.out.println();
+                    }
+                    if (numberOfActiveRecords < PAGE_LENGTH - 1) {
+                        break label;
                     }
                 }
             }
