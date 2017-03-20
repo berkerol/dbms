@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.ListIterator;
 import java.util.Scanner;
 
 public class DBMS {
@@ -181,7 +182,7 @@ public class DBMS {
         LinkedList<String> catalog = readFile(SYSTEM_CATALOG_FILENAME.split("\\.")[0]);
         String catalogHeader = catalog.get(0), systemName = stringToName(catalogHeader.substring(0, SYSTEM_NAME_LENGTH));
         int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_TYPES_LENGTH));
-        for (Iterator<String> iterator = catalog.iterator(); iterator.hasNext();) {
+        for (ListIterator<String> iterator = catalog.listIterator(); iterator.hasNext();) {
             if (iterator.next().equals(typeName)) {
                 System.out.println("ERROR: Type already exists.");
                 return;
@@ -310,7 +311,7 @@ public class DBMS {
         String catalogHeader = catalog.get(0), systemName = stringToName(catalogHeader.substring(0, SYSTEM_NAME_LENGTH));
         int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_TYPES_LENGTH));
         boolean existType = false;
-        for (Iterator<String> iterator = catalog.iterator(); iterator.hasNext();) {
+        for (ListIterator<String> iterator = catalog.listIterator(); iterator.hasNext();) {
             if (iterator.next().equals(typeName)) {
                 existType = true;
                 LinkedList<String> oldFile = readFile(typeName), file = new LinkedList<>();
@@ -347,11 +348,11 @@ public class DBMS {
         for (int i = 0; i < numberOfTypes; i++) {
             if (typeName.equals(readCatalog.nextLine())) {
                 exist = true;
-                Iterator<String> iterator = readFile(typeName).iterator();
+                ListIterator<String> iterator = readFile(typeName).listIterator();
                 String fileHeader = iterator.next();
                 int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
                         USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
-                while(iterator.hasNext()) {
+                while (iterator.hasNext()) {
                     String pageHeader = iterator.next();
                     System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
@@ -431,29 +432,23 @@ public class DBMS {
         for (int i = 0; i < numberOfTypes; i++) {
             if (typeName.equals(readCatalog.nextLine())) {
                 existType = true;
-                LinkedList<String> file = readFile(typeName);
-                int cursor = 0;
-                String fileHeader = file.get(cursor);
-                int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
+                ListIterator<String> iterator = readFile(typeName).listIterator();
+                String fileHeader = iterator.next();
                 int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
                         USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
                 boolean existKey = false;
-                for (int j = 0; j < numberOfPages; j++) {
-                    cursor = j * PAGE_LENGTH + 1;
-                    String pageHeader = file.get(cursor);
+                while (iterator.hasNext()) {
+                    String pageHeader = iterator.next();
                     System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                             UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-                    if (numberOfActiveRecords == 0) {
-                        break;
-                    }
-                    for (int k = 1; k <= numberOfActiveRecords; k++) {
-                        String record = file.get(cursor + k);
+                    for (int j = 1; j <= numberOfActiveRecords; j++) {
+                        String record = iterator.next();
                         int keyField = stringToData(record.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH));
                         if (operator.equals("<")) {
                             if (keyField < value) {
-                                for (int l = 0; l < numberOfFields; l++) {
-                                    System.out.print(stringToData(record.substring(l * FIELD_DATA_LENGTH + 1, (l + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
+                                for (int k = 0; k < numberOfFields; k++) {
+                                    System.out.print(stringToData(record.substring(k * FIELD_DATA_LENGTH + 1, (k + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
                                 }
                                 System.out.println();
                                 existKey = true;
@@ -463,19 +458,22 @@ public class DBMS {
                             }
                         }
                         else if (operator.equals(">") && keyField > value) {
-                            for (int l = 0; l < numberOfFields; l++) {
-                                System.out.print(stringToData(record.substring(l * FIELD_DATA_LENGTH + 1, (l + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
+                            for (int k = 0; k < numberOfFields; k++) {
+                                System.out.print(stringToData(record.substring(k * FIELD_DATA_LENGTH + 1, (k + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
                             }
                             System.out.println();
                             existKey = true;
                         }
                         else if (operator.equals("=") && keyField == value) {
-                            for (int l = 0; l < numberOfFields; l++) {
-                                System.out.print(stringToData(record.substring(l * FIELD_DATA_LENGTH + 1, (l + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
+                            for (int k = 0; k < numberOfFields; k++) {
+                                System.out.print(stringToData(record.substring(k * FIELD_DATA_LENGTH + 1, (k + 1) * FIELD_DATA_LENGTH + 1)) + "\t");
                             }
                             System.out.println();
                             break label;
                         }
+                    }
+                    if (numberOfActiveRecords < PAGE_LENGTH - 1) {
+                        break;
                     }
                 }
                 if (!existKey) {
@@ -513,39 +511,37 @@ public class DBMS {
             if (typeName.equals(readCatalog.nextLine())) {
                 existType = true;
                 LinkedList<String> file = readFile(typeName);
-                int cursor = 0;
-                String fileHeader = file.get(cursor);
-                int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
+                ListIterator<String> iterator = file.listIterator();
+                String fileHeader = iterator.next();
                 int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
                         USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
                 System.out.println("Enter key field.");
                 int keyField = Integer.parseInt(CONSOLE.nextLine());
                 boolean existKey = false;
-                for (int j = 0; j < numberOfPages; j++) {
-                    cursor = j * PAGE_LENGTH + 1;
-                    String pageHeader = file.get(cursor);
+                while (iterator.hasNext()) {
+                    String pageHeader = iterator.next();
                     System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                             UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-                    if (numberOfActiveRecords == 0) {
-                        break;
-                    }
-                    for (int k = 0; k < numberOfActiveRecords; k++) {
-                        String oldRecord = file.get(++cursor);
+                    for (int j = 0; j < numberOfActiveRecords; j++) {
+                        String oldRecord = iterator.next();
                         if (stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH)) == keyField) {
                             String record = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(keyField, FIELD_DATA_LENGTH);
-                            for (int l = 2; l <= numberOfFields; l++) {
-                                System.out.println("Enter " + l + "'th field.");
+                            for (int k = 2; k <= numberOfFields; k++) {
+                                System.out.println("Enter " + k + "'th field.");
                                 record += dataToString(Integer.parseInt(CONSOLE.nextLine()), FIELD_DATA_LENGTH);
                             }
-                            for (int l = numberOfFields; l < MAX_NUMBER_OF_FIELDS; l++) {
+                            for (int k = numberOfFields; k < MAX_NUMBER_OF_FIELDS; k++) {
                                 record += dataToString(0, FIELD_DATA_LENGTH);
                             }
-                            file.set(cursor, record);
+                            iterator.set(record);
                             writeFile(typeName, file);
                             System.out.println("Record is updated.");
                             break label;
                         }
+                    }
+                    if (numberOfActiveRecords < PAGE_LENGTH - 1) {
+                        break;
                     }
                 }
                 if (!existKey) {
