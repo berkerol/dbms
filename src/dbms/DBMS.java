@@ -3,7 +3,6 @@ package dbms;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.ListIterator;
 import java.util.Scanner;
@@ -80,28 +79,26 @@ public class DBMS {
         for (int i = 0; i < numberOfTypes; i++) {
             if (typeName.equals(readCatalog.nextLine())) {
                 exist = true;
-                LinkedList<String> file = readFile(typeName), records = readFileOnlyRecords(typeName), newFile = new LinkedList<>();
-                int cursor = 0;
-                String fileHeader = file.get(cursor);
-                int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
+                LinkedList<String> oldFile = readFile(typeName), newFile = new LinkedList<>();
+                ListIterator<String> iterator = oldFile.listIterator();
+                String fileHeader = iterator.next();
                 int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
                         USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
                 System.out.println("Enter key field.");
                 int keyField = Integer.parseInt(CONSOLE.nextLine());
-                for (int j = 0; j < numberOfPages; j++) {
-                    cursor = j * PAGE_LENGTH + 1;
-                    String pageHeader = file.get(cursor);
+                while (iterator.hasNext()) {
+                    String pageHeader = iterator.next();
                     System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                             UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-                    if (numberOfActiveRecords == 0) {
-                        break;
-                    }
-                    for (int k = 1; k <= numberOfActiveRecords; k++) {
-                        if (stringToData(file.get(cursor + k).substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH)) == keyField) {
+                    for (int j = 1; j <= numberOfActiveRecords; j++) {
+                        if (stringToData(iterator.next().substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH)) == keyField) {
                             System.out.println("ERROR: Record already exists.");
                             return;
                         }
+                    }
+                    if (numberOfActiveRecords < PAGE_LENGTH - 1) {
+                        break;
                     }
                 }
                 System.out.println("No old record with the given key was found, you can continue.");
@@ -113,55 +110,82 @@ public class DBMS {
                 for (int j = numberOfFields; j < MAX_NUMBER_OF_FIELDS; j++) {
                     record += dataToString(0, FIELD_DATA_LENGTH);
                 }
-                String next = "";
-                boolean found = false;
-                for (Iterator<String> iterator = records.iterator(); iterator.hasNext();) {
-                    next = iterator.next();
-                    if (stringToData(next.substring(0, USAGE_STATUS_LENGTH)) == 0) {
-                        found = true;
-                        break;
-                    }
-                    if (keyField < stringToData(next.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH))) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (found) {
-                    records.add(records.indexOf(next), record);
-                }
-                else {
-                    records.addLast(record);
-                }
                 int pageCounter = 0, activeRecordCounter = 0, deletedRecordCounter = 0;
-                while (!records.isEmpty()) {
-                    record = records.poll();
-                    newFile.add(record);
-                    if (stringToData(record.substring(0, USAGE_STATUS_LENGTH)) == 1) {
-                        activeRecordCounter++;
-                    }
-                    else {
-                        deletedRecordCounter++;
-                    }
-                    if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
-                        pageCounter++;
-                        String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
-                                + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-                        newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                        deletedRecordCounter = 0;
-                        if (activeRecordCounter == 0) {
-                            pageCounter--;
-                            for (int j = 0; j < PAGE_LENGTH; j++) {
-                                newFile.removeLast();
-                            }
-                            break;
+                boolean found = false;
+                iterator = oldFile.listIterator();
+                iterator.next();
+                label:
+                while (iterator.hasNext()) {
+                    String pageHeader = iterator.next();
+                    int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
+                            UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
+                    activeRecordCounter = numberOfActiveRecords;
+                    for (int j = 1; j <= numberOfActiveRecords; j++) {
+                        String oldRecord = iterator.next();
+                        if (keyField < stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH))) {
+                            activeRecordCounter++;
+                            found = true;
+                            newFile.add(record);
+                            activeRecordCounter++;
+                            newFile.add(oldRecord);
+                            break label;
                         }
-                        activeRecordCounter = 0;
+                        if (stringToData(oldRecord.substring(0, USAGE_STATUS_LENGTH)) == 0) {
+                            activeRecordCounter++;
+                            found = true;
+                            newFile.add(record);
+                            deletedRecordCounter++;
+                            newFile.add(oldRecord);
+                            break label;
+                        }
+                        newFile.add(oldRecord);
+                    }
+                    if (numberOfActiveRecords < PAGE_LENGTH - 1) {
+                        activeRecordCounter++;
+                        found = true;
+                        newFile.add(record);
+                        break;
+                    }
+                    newFile.add((++pageCounter - 1) * PAGE_LENGTH, pageHeader);
+                    System.out.println("Writing page #" + pageCounter + ".");
+                    activeRecordCounter = 0;
+                }
+                if (!found) {
+                    activeRecordCounter++;
+                    newFile.add(record);
+                }
+                if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
+                    String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
+                            + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
+                    newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
+                    System.out.println("Writing page #" + pageCounter + ".");
+                    deletedRecordCounter = 0;
+                    activeRecordCounter = 0;
+                }
+                while (iterator.hasNext()) {
+                    String line = iterator.next();
+                    if (line.length() == RECORD_LENGTH) {
+                        newFile.add(line);
+                        if (stringToData(line.substring(0, USAGE_STATUS_LENGTH)) == 1) {
+                            activeRecordCounter++;
+                        }
+                        else {
+                            deletedRecordCounter++;
+                        }
+                        if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
+                            String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
+                                    + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
+                            newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
+                            System.out.println("Writing page #" + pageCounter + ".");
+                            deletedRecordCounter = 0;
+                            activeRecordCounter = 0;
+                        }
                     }
                 }
-                pageCounter++;
-                String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
+                String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
                         + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
                 newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
+                System.out.println("Writing page #" + pageCounter + ".");
                 String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
                         + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
                 newFile.addFirst(newFileHeader);
@@ -314,8 +338,8 @@ public class DBMS {
         for (ListIterator<String> iterator = catalog.listIterator(); iterator.hasNext();) {
             if (iterator.next().equals(typeName)) {
                 existType = true;
-                LinkedList<String> oldFile = readFile(typeName), file = new LinkedList<>();
-                String oldFileHeader = oldFile.get(0), fileHeader = dataToString(0, USAGE_STATUS_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
+                LinkedList<String> file = new LinkedList<>();
+                String oldFileHeader = readFile(typeName).get(0), fileHeader = dataToString(0, USAGE_STATUS_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
                         + oldFileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
                 file.add(fileHeader);
                 String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
