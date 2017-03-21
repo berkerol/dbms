@@ -84,25 +84,10 @@ public class DBMS {
                 String fileHeader = iterator.next();
                 int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
                         USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
+                String record = dataToString(1, USAGE_STATUS_LENGTH);
                 System.out.println("Enter key field.");
                 int keyField = Integer.parseInt(CONSOLE.nextLine());
-                while (iterator.hasNext()) {
-                    String pageHeader = iterator.next();
-                    System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
-                    int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
-                            UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-                    for (int j = 1; j <= numberOfActiveRecords; j++) {
-                        if (stringToData(iterator.next().substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH)) == keyField) {
-                            System.out.println("ERROR: Record already exists.");
-                            return;
-                        }
-                    }
-                    if (numberOfActiveRecords < PAGE_LENGTH - 1) {
-                        break;
-                    }
-                }
-                System.out.println("No old record with the given key was found, you can continue.");
-                String record = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(keyField, FIELD_DATA_LENGTH);
+                record  += dataToString(keyField, FIELD_DATA_LENGTH);
                 for (int j = 2; j <= numberOfFields; j++) {
                     System.out.println("Enter " + j + "'th field.");
                     record += dataToString(Integer.parseInt(CONSOLE.nextLine()), FIELD_DATA_LENGTH);
@@ -112,17 +97,21 @@ public class DBMS {
                 }
                 int pageCounter = 0, activeRecordCounter = 0, deletedRecordCounter = 0;
                 boolean found = false;
-                iterator = oldFile.listIterator();
-                iterator.next();
                 label:
                 while (iterator.hasNext()) {
                     String pageHeader = iterator.next();
+                    System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                             UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
                     activeRecordCounter = numberOfActiveRecords;
                     for (int j = 1; j <= numberOfActiveRecords; j++) {
                         String oldRecord = iterator.next();
-                        if (keyField < stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH))) {
+                        int oldKeyField = stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH));
+                        if (keyField == oldKeyField) {
+                            System.out.println("ERROR: Record already exists.");
+                            return;
+                        }
+                        if (keyField < oldKeyField) {
                             activeRecordCounter++;
                             found = true;
                             newFile.add(record);
@@ -147,7 +136,6 @@ public class DBMS {
                         break;
                     }
                     newFile.add((++pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                    System.out.println("Writing page #" + pageCounter + ".");
                     activeRecordCounter = 0;
                 }
                 if (!found) {
@@ -158,7 +146,6 @@ public class DBMS {
                     String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
                             + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
                     newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                    System.out.println("Writing page #" + pageCounter + ".");
                     deletedRecordCounter = 0;
                     activeRecordCounter = 0;
                 }
@@ -176,7 +163,7 @@ public class DBMS {
                             String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
                                     + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
                             newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                            System.out.println("Writing page #" + pageCounter + ".");
+                            System.out.println("Reading page #" + pageCounter + ".");
                             deletedRecordCounter = 0;
                             activeRecordCounter = 0;
                         }
@@ -185,7 +172,6 @@ public class DBMS {
                 String pageHeader = nameToString("", UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
                         + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
                 newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                System.out.println("Writing page #" + pageCounter + ".");
                 String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
                         + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
                 newFile.addFirst(newFileHeader);
