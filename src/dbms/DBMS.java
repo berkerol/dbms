@@ -103,8 +103,7 @@ public class DBMS {
                     System.out.println("Reading page #" + stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH, UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
                     int numberOfActiveRecords = stringToData(pageHeader.substring(UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                             UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-                    activeRecordCounter = numberOfActiveRecords;
-                    for (int j = 1; j <= numberOfActiveRecords; j++) {
+                    for (int j = 0; j < numberOfActiveRecords; j++) {
                         String oldRecord = iterator.next();
                         int oldKeyField = stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH));
                         if (keyField == oldKeyField) {
@@ -119,14 +118,7 @@ public class DBMS {
                             newFile.add(oldRecord);
                             break label;
                         }
-                        if (stringToData(oldRecord.substring(0, USAGE_STATUS_LENGTH)) == 0) {
-                            activeRecordCounter++;
-                            found = true;
-                            newFile.add(record);
-                            deletedRecordCounter++;
-                            newFile.add(oldRecord);
-                            break label;
-                        }
+                        activeRecordCounter++;
                         newFile.add(oldRecord);
                     }
                     if (numberOfActiveRecords < PAGE_LENGTH - 1) {
