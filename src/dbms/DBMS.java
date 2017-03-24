@@ -27,41 +27,54 @@ public class DBMS {
 
     public static void main(String[] args) throws FileNotFoundException {
         while (true) {
-            System.out.println("DDL Operations.");
-            System.out.println("\t1 - Create a Type.");
-            System.out.println("\t2 - Delete a Type.");
-            System.out.println("\t3 - List all Types.");
-            System.out.println("DML Operations.");
-            System.out.println("\t4 - Create a Record.");
-            System.out.println("\t5 - Delete a Record.");
-            System.out.println("\t6 - Update a Record.");
-            System.out.println("\t7 - Search for a Record.");
-            System.out.println("\t8 - List all Records.");
+            System.out.println("1 - DDL Operations.");
+            System.out.println("2 - DML Operations.");
             System.out.println("Enter any other integer to exit.");
-            switch (Integer.parseInt(CONSOLE.nextLine())) {
+            int choice = Integer.parseInt(CONSOLE.nextLine());
+            switch (choice) {
                 case 1:
-                    createType();
+                    System.out.println("\t1 - Create a Type.");
+                    System.out.println("\t2 - Delete a Type.");
+                    System.out.println("\t3 - List all Types.");
+                    switch (Integer.parseInt(CONSOLE.nextLine())) {
+                        case 1:
+                            createType();
+                            break;
+                        case 2:
+                            deleteType();
+                            break;
+                        case 3:
+                            listTypes();
+                            break;
+                        default:
+                            return;
+                    }
                     break;
                 case 2:
-                    deleteType();
-                    break;
-                case 3:
-                    listTypes();
-                    break;
-                case 4:
-                    createRecord();
-                    break;
-                case 5:
-                    deleteRecord();
-                    break;
-                case 6:
-                    updateRecord();
-                    break;
-                case 7:
-                    searchRecord();
-                    break;
-                case 8:
-                    listRecords();
+                    System.out.println("\t1 - Create a Record.");
+                    System.out.println("\t2 - Delete a Record.");
+                    System.out.println("\t3 - Update a Record.");
+                    System.out.println("\t4 - Search for a Record.");
+                    System.out.println("\t5 - List all Records.");
+                    switch (Integer.parseInt(CONSOLE.nextLine())) {
+                        case 1:
+                            createRecord();
+                            break;
+                        case 2:
+                            deleteRecord();
+                            break;
+                        case 3:
+                            updateRecord();
+                            break;
+                        case 4:
+                            searchRecord();
+                            break;
+                        case 5:
+                            listRecords();
+                            break;
+                        default:
+                            return;
+                    }
                     break;
                 default:
                     return;
