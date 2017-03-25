@@ -26,6 +26,7 @@ public class DBMS {
     private static final int SYSTEM_CATALOG_PAGE_LENGTH = 36;
     private static final int SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH = 3;
     private static final int SYSTEM_NAME_LENGTH = 50;
+    private static final int TYPE_NAME_LENGTH = 27;
     private static final int USAGE_STATUS_LENGTH = 1;
 
     public static void main(String[] args) throws FileNotFoundException {
@@ -71,7 +72,7 @@ public class DBMS {
                         int numberOfTypes = stringToData(pageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH,
                                 SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_TYPES_LENGTH));
                         for (int j = 0; j < numberOfTypes; j++) {
-                            if (typeName.equals(iterator.next())) {
+                            if (typeName.equals(stringToName(iterator.next()))) {
                                 switch (operation) {
                                     case 1:
                                         createRecord(typeName);
@@ -151,7 +152,7 @@ public class DBMS {
         System.out.println("Enter the type name.");
         String typeName = CONSOLE.nextLine();
         LinkedList<String> catalog = readFile(SYSTEM_CATALOG_FILENAME);
-        catalog.add(typeName);
+        catalog.add(nameToString(typeName, TYPE_NAME_LENGTH));
         String oldCatalogHeader = catalog.get(0);
         int numberOfPages = stringToData(oldCatalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_PAGES_LENGTH));
         int cursor = (numberOfPages - 1) * SYSTEM_CATALOG_PAGE_LENGTH + 1;
@@ -304,7 +305,7 @@ public class DBMS {
             int numberOfTypes = stringToData(pageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH,
                     SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_TYPES_LENGTH));
             for (int j = 0; j < numberOfTypes; j++) {
-                System.out.println(iterator.next());
+                System.out.println(stringToName(iterator.next()));
             }
         }
     }
