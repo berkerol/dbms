@@ -49,7 +49,7 @@ FUNCTION deleteType
         delete this type name from system catalog
       END IF
     END FOREACH
-    update number of types in page headers
+    update number of types in page header
   END FOREACH
   IF there is no type names in the last page
     delete this page
@@ -126,7 +126,7 @@ FUNCTION createRecord
         insert new record before current active record
       END IF
     END FOREACH
-    update numbers of active and deleted records in page headers
+    update numbers of active and deleted records in page header
   END FOREACH
   IF there is no empty slots in the last page
     create a new page
@@ -156,7 +156,7 @@ FUNCTION deleteRecord
         change usage status to deleted in record header
       END IF
     END FOREACH
-    update numbers of active and deleted records in page headers
+    update numbers of active and deleted records in page header
   END FOREACH
   insert old record here (end)
   update numbers of active and deleted records in last page header
