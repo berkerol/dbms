@@ -151,13 +151,13 @@ FUNCTION deleteRecord
         change usage status to deleted in record header
       END IF
     END FOREACH
-    FOREACH deleted record in that page
-      shift the current deleted record by one record to the left
-    END FOREACH
+    IF there is a deleted record in that page
+      insert old record before current deleted record
+      update numbers of active and deleted records in page header
+      BREAK
+    END IF
     update numbers of active and deleted records in page header
   END FOREACH
-  insert old record here (end)
-  update number of deleted records in last page header
   SAVE and CLOSE the file
 END deleteRecord
 ```
