@@ -84,24 +84,6 @@ END listAllTypes
 
 <h2 align="center">DML Operations</h2>
 
-```
-FUNCTION chooseDML(operation type)
-  GET type name from user
-  OPEN system catalog
-  read number of pages from system catalog header
-  FOREACH page in system catalog
-    read number of types from page header
-    FOREACH type name in that page
-      IF type name matches the user input
-        CALL the function according to the operation type
-        BREAK ALL
-      END IF
-    END FOREACH
-  END FOREACH
-  CLOSE system catalog
-END chooseDML
-```
-
 <h3 align="center">Create a Record</h3>
 
 ```
@@ -118,7 +100,7 @@ FUNCTION createRecord
   END FOREACH
   read number of pages from file header
   FOREACH page in that file
-    read number of active records from page header
+    read numbers of active and deleted records from page header
     FOREACH active record in that page
       IF new record is inserted
         shift the current active record by one record to the right
@@ -126,8 +108,21 @@ FUNCTION createRecord
         insert new record before current active record
       END IF
     END FOREACH
+    FOREACH deleted record in that page
+      IF new record is inserted
+        shift the current deleted record by one record to the right
+      ELSE
+        insert new record before current deleted record
+      END IF
+    END FOREACH
     update numbers of active and deleted records in page header
   END FOREACH
+  IF new record is inserted
+    insert the last shifted record
+  ELSE
+    insert new record
+  END IF
+  update numbers of active and deleted records in last page header
   IF there is no empty slots in the last page
     create a new page
     add page number to newly created page header
@@ -147,7 +142,7 @@ FUNCTION deleteRecord
   GET key field from user
   read number of pages from file header
   FOREACH page in that file
-    read number of active records from page header
+    read numbers of active and deleted records from page header
     FOREACH active record in that page
       IF old record is deleted
         shift the current active record by one record to the left
@@ -156,10 +151,13 @@ FUNCTION deleteRecord
         change usage status to deleted in record header
       END IF
     END FOREACH
+    FOREACH deleted record in that page
+      shift the current deleted record by one record to the left
+    END FOREACH
     update numbers of active and deleted records in page header
   END FOREACH
   insert old record here (end)
-  update numbers of active and deleted records in last page header
+  update number of deleted records in last page header
   SAVE and CLOSE the file
 END deleteRecord
 ```
@@ -235,4 +233,22 @@ FUNCTION listAllRecords
   END FOREACH
   CLOSE the file
 END listAllRecords
+```
+
+```
+FUNCTION chooseDML(operation type)
+  GET type name from user
+  OPEN system catalog
+  read number of pages from system catalog header
+  FOREACH page in system catalog
+    read number of types from page header
+    FOREACH type name in that page
+      IF type name matches the user input
+        CALL the function according to the operation type
+        BREAK ALL
+      END IF
+    END FOREACH
+  END FOREACH
+  CLOSE system catalog
+END chooseDML
 ```

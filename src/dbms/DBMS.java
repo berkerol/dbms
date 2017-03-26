@@ -101,8 +101,8 @@ public class DBMS {
     }
 
     private static void createRecord(String typeName) throws FileNotFoundException {
-        LinkedList<String> oldFile = readFile(typeName), newFile = new LinkedList<>();
-        ListIterator<String> iterator = oldFile.listIterator();
+        LinkedList<String> file = readFile(typeName);
+        ListIterator<String> iterator = file.listIterator();
         String fileHeader = iterator.next();
         int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
         int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
@@ -110,42 +110,83 @@ public class DBMS {
         System.out.println("Enter key field.");
         int keyField = Integer.parseInt(CONSOLE.nextLine());
         String record = getFields(keyField, numberOfFields);
-        int pageCounter = 0, activeRecordCounter = 0, deletedRecordCounter = 0;
-        boolean found = false;
-        label:
+        int activeRecords = 0, deletedRecords = 0;
+        String oldRecord = "";
+        boolean inserted = false;
         for (int i = 0; i < numberOfPages; i++) {
             String pageHeader = iterator.next();
             System.out.println("Reading page #" + stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
             int numberOfActiveRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
                     PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
+            int numberOfDeletedRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH,
+                    PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH + NUMBER_OF_RECORDS_LENGTH));
             for (int j = 0; j < numberOfActiveRecords; j++) {
-                String oldRecord = iterator.next();
-                int oldKeyField = stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH));
-                if (keyField < oldKeyField) {
-                    activeRecordCounter++;
-                    found = true;
-                    newFile.add(record);
-                    activeRecordCounter++;
-                    newFile.add(oldRecord);
-                    break label;
+                String currentRecord = iterator.next();
+                if (inserted) {
+                    iterator.set(oldRecord);
+                    oldRecord = currentRecord;
                 }
-                activeRecordCounter++;
-                newFile.add(oldRecord);
+                else if (keyField < stringToData(currentRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH))) {
+                    iterator.set(record);
+                    oldRecord = currentRecord;
+                    inserted = true;
+                }
             }
-            if (numberOfActiveRecords < PAGE_LENGTH - 1) {
-                activeRecordCounter++;
-                found = true;
-                newFile.add(record);
-                break;
+            activeRecords = numberOfActiveRecords;
+            for (int j = 0; j < numberOfDeletedRecords; j++) {
+                String currentRecord = iterator.next();
+                if (inserted) {
+                    iterator.set(oldRecord);
+                    if (stringToData(oldRecord.substring(0, USAGE_STATUS_LENGTH)) == 0) {
+                        deletedRecords++;
+                    }
+                    else {
+                        activeRecords++;
+                    }
+                    oldRecord = currentRecord;
+                }
+                else {
+                    iterator.set(record);
+                    oldRecord = currentRecord;
+                    inserted = true;
+                    activeRecords++;
+                }
             }
-            newFile.add((++pageCounter - 1) * PAGE_LENGTH, pageHeader);
-            activeRecordCounter = 0;
+            if (inserted && i != numberOfPages - 1) {
+                file.set(i * PAGE_LENGTH + 1, pageHeader.substring(0, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)
+                        + dataToString(activeRecords, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecords, NUMBER_OF_RECORDS_LENGTH));
+            }
+            if (i != numberOfPages - 1) {
+                activeRecords = 0;
+                deletedRecords = 0;
+            }
         }
-        if (!found) {
-            activeRecordCounter++;
-            newFile.add(record);
+        if (inserted) {
+            file.add(oldRecord);
+            if (stringToData(oldRecord.substring(0, USAGE_STATUS_LENGTH)) == 0) {
+                deletedRecords++;
+            }
+            else {
+                activeRecords++;
+            }
         }
-        rewrite(newFile, iterator, fileHeader, typeName, pageCounter, activeRecordCounter, deletedRecordCounter, false, "");
+        else {
+            file.add(record);
+            activeRecords++;
+        }
+        String lastPageHeader = file.get((numberOfPages - 1) * PAGE_LENGTH + 1);
+        file.set((numberOfPages - 1) * PAGE_LENGTH + 1, lastPageHeader.substring(0, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)
+                + dataToString(activeRecords, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecords, NUMBER_OF_RECORDS_LENGTH));
+        if (activeRecords + deletedRecords == PAGE_LENGTH - 1) {
+            String newPageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++numberOfPages, NUMBER_OF_PAGES_LENGTH)
+                    + dataToString(0, NUMBER_OF_RECORDS_LENGTH) + dataToString(0, NUMBER_OF_RECORDS_LENGTH);
+            file.add(newPageHeader);
+            String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(numberOfPages, NUMBER_OF_PAGES_LENGTH)
+                    + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
+            file.set(0, newFileHeader);
+        }
+        writeFile(typeName, file);
+        System.out.println("Record is added.");
     }
 
     private static void createType() throws FileNotFoundException {
@@ -226,7 +267,43 @@ public class DBMS {
             newFile.add((++pageCounter - 1) * PAGE_LENGTH, pageHeader);
             activeRecordCounter = 0;
         }
-        rewrite(newFile, iterator, fileHeader, typeName, pageCounter, activeRecordCounter, deletedRecordCounter, true, record);
+        if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
+            String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
+                    + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
+            newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
+            deletedRecordCounter = 0;
+            activeRecordCounter = 0;
+        }
+        while (iterator.hasNext()) {
+            String line = iterator.next();
+            if (line.length() == RECORD_LENGTH) {
+                newFile.add(line);
+                if (stringToData(line.substring(0, USAGE_STATUS_LENGTH)) == 1) {
+                    activeRecordCounter++;
+                }
+                else {
+                    deletedRecordCounter++;
+                }
+                if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
+                    String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
+                            + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
+                    newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
+                    System.out.println("Reading page #" + pageCounter + ".");
+                    deletedRecordCounter = 0;
+                    activeRecordCounter = 0;
+                }
+            }
+        }
+        newFile.add(record);
+        deletedRecordCounter++;
+        String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
+                + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
+        newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
+        String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
+                + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
+        newFile.addFirst(newFileHeader);
+        writeFile(typeName, newFile);
+        System.out.println("Record is deleted.");
     }
 
     private static void deleteType() throws FileNotFoundException {
@@ -334,54 +411,6 @@ public class DBMS {
         }
         read.close();
         return file;
-    }
-
-    private static void rewrite(LinkedList<String> newFile, ListIterator<String> iterator, String fileHeader, String typeName,
-            int pageCounter, int activeRecordCounter, int deletedRecordCounter, boolean delete, String record) throws FileNotFoundException {
-        if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
-            String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
-                    + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-            newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-            deletedRecordCounter = 0;
-            activeRecordCounter = 0;
-        }
-        while (iterator.hasNext()) {
-            String line = iterator.next();
-            if (line.length() == RECORD_LENGTH) {
-                newFile.add(line);
-                if (stringToData(line.substring(0, USAGE_STATUS_LENGTH)) == 1) {
-                    activeRecordCounter++;
-                }
-                else {
-                    deletedRecordCounter++;
-                }
-                if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
-                    String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
-                            + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-                    newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                    System.out.println("Reading page #" + pageCounter + ".");
-                    deletedRecordCounter = 0;
-                    activeRecordCounter = 0;
-                }
-            }
-        }
-        if (delete) {
-            newFile.add(record);
-            deletedRecordCounter++;
-        }
-        String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
-                + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-        newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-        String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
-                + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
-        newFile.addFirst(newFileHeader);
-        writeFile(typeName, newFile);
-        if (!delete) {
-            System.out.println("Record is added.");
-        }
-        else {
-            System.out.println("Record is deleted.");
-        }
     }
 
     private static void searchRecord(String typeName) throws FileNotFoundException {
