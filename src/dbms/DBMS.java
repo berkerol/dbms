@@ -12,22 +12,20 @@ public class DBMS {
     private static final Scanner CONSOLE = new Scanner(System.in);
     private static final String EXTENSION = ".txt";
     private static final int FIELD_DATA_LENGTH = 4;
+    private static final int FIELD_MAX_NUMBER = 10;
     private static final int FIELD_NAME_LENGTH = 7;
-    private static final int MAX_NUMBER_OF_FIELDS = 16;
     private static final int NUMBER_OF_FIELDS_LENGTH = 2;
-    private static final int NUMBER_OF_PAGES_LENGTH = 2;
-    private static final int NUMBER_OF_RECORDS_LENGTH = 2;
-    private static final int NUMBER_OF_TYPES_LENGTH = 2;
-    private static final int PAGE_LENGTH = 16;
-    private static final int PAGE_NUMBER_LENGTH = 2;
-    private static final int PAGE_UNUSED_SPACE_LENGTH = 11;
-    private static final int RECORD_LENGTH = 65;
-    private static final String SYSTEM_CATALOG_FILENAME = "SystemCatalog";
-    private static final int SYSTEM_CATALOG_PAGE_LENGTH = 36;
-    private static final int SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH = 3;
+    private static final String SC_FILENAME = "SystemCatalog";
+    private static final int SC_NUMBER_OF_PAGES_LENGTH = 2;
+    private static final int SC_NUMBER_OF_RECORDS_LENGTH = 2;
+    private static final int SC_PAGE_LENGTH = 11;
+    private static final int SC_PAGE_UNUSED_SPACE_LENGTH = 8;
     private static final int SYSTEM_NAME_LENGTH = 50;
-    private static final int TYPE_NAME_LENGTH = 27;
-    private static final int USAGE_STATUS_LENGTH = 1;
+    private static final int TYPE_NAME_LENGTH = 25;
+    private static final int TYPE_NUMBER_OF_PAGES_LENGTH = 2;
+    private static final int TYPE_NUMBER_OF_RECORDS_LENGTH = 2;
+    private static final int TYPE_PAGE_LENGTH = 25;
+    private static final int TYPE_PAGE_UNUSED_SPACE_LENGTH = 10;
 
     public static void main(String[] args) throws FileNotFoundException {
         while (true) {
@@ -45,10 +43,10 @@ public class DBMS {
                             createType();
                             break;
                         case 2:
-                            deleteType();
+                            //deleteType();
                             break;
                         case 3:
-                            listTypes();
+                            systemCatalog("", 6);
                             break;
                     }
                     break;
@@ -60,43 +58,7 @@ public class DBMS {
                     System.out.println("5 - List all Records.");
                     int operation = Integer.parseInt(CONSOLE.nextLine());
                     System.out.println("Enter the type name.");
-                    String typeName = CONSOLE.nextLine();
-                    ListIterator<String> iterator = readFile(SYSTEM_CATALOG_FILENAME).listIterator();
-                    String catalogHeader = iterator.next();
-                    int numberOfPages = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_PAGES_LENGTH));
-                    label:
-                    for (int i = 0; i < numberOfPages; i++) {
-                        String pageHeader = iterator.next();
-                        System.out.println("Reading system catalog page #" + stringToData(pageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH,
-                                SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH)) + ".");
-                        int numberOfTypes = stringToData(pageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH,
-                                SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_TYPES_LENGTH));
-                        for (int j = 0; j < numberOfTypes; j++) {
-                            if (typeName.equals(stringToName(iterator.next()))) {
-                                switch (operation) {
-                                    case 1:
-                                        createRecord(typeName);
-                                        break label;
-                                    case 2:
-                                        deleteRecord(typeName);
-                                        break label;
-                                    case 3:
-                                        updateRecord(typeName);
-                                        break label;
-                                    case 4:
-                                        System.out.println("Enter search operator (<, >, =).");
-                                        String operator = CONSOLE.nextLine();
-                                        System.out.println("Enter searched value.");
-                                        int value = Integer.parseInt(CONSOLE.nextLine());
-                                        searchRecord(typeName, operator, value);
-                                        break label;
-                                    case 5:
-                                        searchRecord(typeName, "L", 0);
-                                        break label;
-                                }
-                            }
-                        }
-                    }
+                    systemCatalog(CONSOLE.nextLine(), operation);
                     break;
                 default:
                     return;
@@ -104,135 +66,90 @@ public class DBMS {
         }
     }
 
-    private static void createRecord(String typeName) throws FileNotFoundException {
+    private static boolean createRecord(String scRecord, int numberOfPages, int numberOfFields) throws FileNotFoundException {
+        String typeName = stringToName(scRecord.substring(0, TYPE_NAME_LENGTH));
         LinkedList<String> file = readFile(typeName);
         ListIterator<String> iterator = file.listIterator();
-        String fileHeader = iterator.next();
-        int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
-        int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
-                USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
         System.out.println("Enter key field.");
-        int keyField = Integer.parseInt(CONSOLE.nextLine());
-        String record = getFieldValues(keyField, numberOfFields);
-        int activeRecords = 0, deletedRecords = 0;
-        String oldRecord = "";
-        boolean inserted = false;
+        int keyField = Integer.parseInt(CONSOLE.nextLine()), records = 0;
+        String record = getFieldValues(keyField, numberOfFields), oldRecord = "";
+        boolean inserted = false, newPage = false;
         for (int i = 0; i < numberOfPages; i++) {
             String pageHeader = iterator.next();
-            System.out.println("Reading page #" + stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
-            int numberOfActiveRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
-                    PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-            int numberOfDeletedRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH,
-                    PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-            for (int j = 0; j < numberOfActiveRecords; j++) {
+            System.out.println("Reading page #" + stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH)) + ".");
+            int numberOfRecords = stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + TYPE_NUMBER_OF_RECORDS_LENGTH));
+            for (int j = 0; j < numberOfRecords; j++) {
                 String currentRecord = iterator.next();
                 if (inserted) {
                     iterator.set(oldRecord);
                     oldRecord = currentRecord;
                 }
-                else if (keyField < stringToData(currentRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH))) {
+                else if (keyField < stringToData(currentRecord.substring(0, FIELD_DATA_LENGTH))) {
                     iterator.set(record);
                     oldRecord = currentRecord;
                     inserted = true;
                 }
             }
-            activeRecords = numberOfActiveRecords;
-            for (int j = 0; j < numberOfDeletedRecords; j++) {
-                String currentRecord = iterator.next();
-                if (inserted) {
-                    iterator.set(oldRecord);
-                    if (stringToData(oldRecord.substring(0, USAGE_STATUS_LENGTH)) == 0) {
-                        deletedRecords++;
-                    }
-                    else {
-                        activeRecords++;
-                    }
-                    oldRecord = currentRecord;
-                }
-                else {
-                    iterator.set(record);
-                    oldRecord = currentRecord;
-                    inserted = true;
-                    activeRecords++;
-                }
-            }
-            if (inserted && i != numberOfPages - 1) {
-                file.set(i * PAGE_LENGTH + 1, pageHeader.substring(0, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)
-                        + dataToString(activeRecords, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecords, NUMBER_OF_RECORDS_LENGTH));
-            }
-            if (i != numberOfPages - 1) {
-                activeRecords = 0;
-                deletedRecords = 0;
-            }
+            records = numberOfRecords;
         }
         if (inserted) {
             file.add(oldRecord);
-            if (stringToData(oldRecord.substring(0, USAGE_STATUS_LENGTH)) == 0) {
-                deletedRecords++;
-            }
-            else {
-                activeRecords++;
-            }
         }
         else {
             file.add(record);
-            activeRecords++;
         }
-        String lastPageHeader = file.get((numberOfPages - 1) * PAGE_LENGTH + 1);
-        file.set((numberOfPages - 1) * PAGE_LENGTH + 1, lastPageHeader.substring(0, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)
-                + dataToString(activeRecords, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecords, NUMBER_OF_RECORDS_LENGTH));
-        if (activeRecords + deletedRecords == PAGE_LENGTH - 1) {
-            String newPageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++numberOfPages, NUMBER_OF_PAGES_LENGTH)
-                    + dataToString(0, NUMBER_OF_RECORDS_LENGTH) + dataToString(0, NUMBER_OF_RECORDS_LENGTH);
-            file.add(newPageHeader);
-            String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(numberOfPages, NUMBER_OF_PAGES_LENGTH)
-                    + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
-            file.set(0, newFileHeader);
+        records++;
+        String lastPageHeader = file.get((numberOfPages - 1) * TYPE_PAGE_LENGTH);
+        file.set((numberOfPages - 1) * TYPE_PAGE_LENGTH, lastPageHeader.substring(0, TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(records, TYPE_NUMBER_OF_RECORDS_LENGTH));
+        if (records == TYPE_PAGE_LENGTH - 1) {
+            file.add(nameToString("", TYPE_PAGE_UNUSED_SPACE_LENGTH) + dataToString(++numberOfPages, SC_NUMBER_OF_PAGES_LENGTH)
+                    + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH));
+            newPage = true;
         }
         writeFile(typeName, file);
         System.out.println("Record is created.");
+        return newPage;
     }
 
     private static void createType() throws FileNotFoundException {
         System.out.println("Enter the type name.");
         String typeName = CONSOLE.nextLine();
-        LinkedList<String> catalog = readFile(SYSTEM_CATALOG_FILENAME);
-        catalog.add(nameToString(typeName, TYPE_NAME_LENGTH));
-        String oldCatalogHeader = catalog.get(0);
-        int numberOfPages = stringToData(oldCatalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_PAGES_LENGTH));
-        int cursor = (numberOfPages - 1) * SYSTEM_CATALOG_PAGE_LENGTH + 1;
-        String oldSystemCatalogPageHeader = catalog.get(cursor);
-        System.out.println("Reading system catalog page #" + stringToData(oldSystemCatalogPageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH,
-                SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH)) + ".");
-        int numberOfTypes = stringToData(oldSystemCatalogPageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH,
-                SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_TYPES_LENGTH)) + 1;
-        String newSystemCatalogPageHeader = oldSystemCatalogPageHeader.substring(0, SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH)
-                + dataToString(numberOfTypes, NUMBER_OF_TYPES_LENGTH);
-        catalog.set(cursor, newSystemCatalogPageHeader);
-        if (numberOfTypes == SYSTEM_CATALOG_PAGE_LENGTH - 1) {
-            numberOfPages++;
-            String systemCatalogPageHeader = nameToString("", SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH)
-                    + dataToString(numberOfPages, NUMBER_OF_PAGES_LENGTH) + dataToString(0, NUMBER_OF_TYPES_LENGTH);
-            catalog.add(systemCatalogPageHeader);
-            String newCatalogHeader = oldCatalogHeader.substring(0, SYSTEM_NAME_LENGTH) + dataToString(numberOfPages, NUMBER_OF_PAGES_LENGTH);
-            catalog.set(0, newCatalogHeader);
-        }
-        writeFile(SYSTEM_CATALOG_FILENAME, catalog);
-        LinkedList<String> file = new LinkedList<>();
         System.out.println("Enter the number of fields.");
         int numberOfFields = Integer.parseInt(CONSOLE.nextLine());
-        String fileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH) + dataToString(numberOfFields, NUMBER_OF_FIELDS_LENGTH);
+        String record = nameToString(typeName, TYPE_NAME_LENGTH) + dataToString(1, TYPE_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(numberOfFields, NUMBER_OF_FIELDS_LENGTH);
         for (int i = 1; i <= numberOfFields; i++) {
             System.out.println("Enter " + i + "'th field name.");
-            fileHeader += nameToString(CONSOLE.nextLine(), FIELD_NAME_LENGTH);
+            record += nameToString(CONSOLE.nextLine(), FIELD_NAME_LENGTH);
         }
-        for (int i = numberOfFields; i < MAX_NUMBER_OF_FIELDS; i++) {
-            fileHeader += nameToString("", FIELD_NAME_LENGTH);
+        for (int i = numberOfFields; i < FIELD_MAX_NUMBER; i++) {
+            record += nameToString("", FIELD_NAME_LENGTH);
         }
-        String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
-                + dataToString(0, NUMBER_OF_RECORDS_LENGTH) + dataToString(0, NUMBER_OF_RECORDS_LENGTH);
-        file.add(fileHeader);
-        file.add(pageHeader);
+        LinkedList<String> catalog = readFile(SC_FILENAME);
+        catalog.add(record);
+        String oldCatalogHeader = catalog.get(0);
+        int numberOfPages = stringToData(oldCatalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + SC_NUMBER_OF_PAGES_LENGTH));
+        int cursor = (numberOfPages - 1) * SC_PAGE_LENGTH + 1;
+        String lastPageHeader = catalog.get(cursor);
+        System.out.println("Reading system catalog page #" + stringToData(lastPageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH,
+                SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)) + ".");
+        int numberOfRecords = stringToData(lastPageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
+                SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH)) + 1;
+        catalog.set(cursor, lastPageHeader.substring(0, SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(numberOfRecords, SC_NUMBER_OF_RECORDS_LENGTH));
+        if (numberOfRecords == SC_PAGE_LENGTH - 1) {
+            numberOfPages++;
+            catalog.add(nameToString("", SC_PAGE_UNUSED_SPACE_LENGTH) + dataToString(numberOfPages, SC_NUMBER_OF_PAGES_LENGTH)
+                    + dataToString(0, SC_NUMBER_OF_RECORDS_LENGTH));
+            catalog.set(0, oldCatalogHeader.substring(0, SYSTEM_NAME_LENGTH) + dataToString(numberOfPages, SC_NUMBER_OF_PAGES_LENGTH));
+        }
+        writeFile(SC_FILENAME, catalog);
+        LinkedList<String> file = new LinkedList<>();
+        file.add(nameToString("", TYPE_PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, TYPE_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH));
         writeFile(typeName, file);
         System.out.println("Type is created.");
     }
@@ -246,88 +163,81 @@ public class DBMS {
         return s + ("" + data);
     }
 
-    private static void deleteRecord(String typeName) throws FileNotFoundException {
-        LinkedList<String> oldFile = readFile(typeName), newFile = new LinkedList<>();
-        ListIterator<String> iterator = oldFile.listIterator();
-        String fileHeader = iterator.next();
-        int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
+    private static boolean deleteRecord(String scRecord, int numberOfPages) throws FileNotFoundException {
+        String typeName = stringToName(scRecord.substring(0, TYPE_NAME_LENGTH));
+        LinkedList<String> file = readFile(typeName);
+        ListIterator<String> iterator = file.listIterator();
         System.out.println("Enter key field.");
-        int keyField = Integer.parseInt(CONSOLE.nextLine());
-        int pageCounter = 0, activeRecordCounter = 0, deletedRecordCounter = 0;
-        String record = "";
-        label:
+        int keyField = Integer.parseInt(CONSOLE.nextLine()), records = 0;
+        boolean deleted = false, emptyPage = false;
         for (int i = 0; i < numberOfPages; i++) {
-            String pageHeader = iterator.next();
-            System.out.println("Reading page #" + stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
-            int numberOfActiveRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
-                    PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-            for (int j = 0; j < numberOfActiveRecords; j++) {
-                String oldRecord = iterator.next();
-                if (stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH)) == keyField) {
-                    record = dataToString(0, USAGE_STATUS_LENGTH) + oldRecord.substring(1);
-                    break label;
+            String pageHeader = iterator.next(), currentRecord;
+            System.out.println("Reading page #" + stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH)) + ".");
+            int numberOfRecords = stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + TYPE_NUMBER_OF_RECORDS_LENGTH));
+            if (numberOfRecords > 0) {
+                currentRecord = iterator.next();
+                if (deleted) {
+                    iterator.previous();
+                    iterator.previous();
+                    iterator.previous();
+                    iterator.set(currentRecord);
+                    iterator.next();
+                    iterator.next();
+                    iterator.next();
                 }
-                activeRecordCounter++;
-                newFile.add(oldRecord);
-            }
-            newFile.add((++pageCounter - 1) * PAGE_LENGTH, pageHeader);
-            activeRecordCounter = 0;
-        }
-        if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
-            String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
-                    + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-            newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-            deletedRecordCounter = 0;
-            activeRecordCounter = 0;
-        }
-        while (iterator.hasNext()) {
-            String line = iterator.next();
-            if (line.length() == RECORD_LENGTH) {
-                newFile.add(line);
-                if (stringToData(line.substring(0, USAGE_STATUS_LENGTH)) == 1) {
-                    activeRecordCounter++;
-                }
-                else {
-                    deletedRecordCounter++;
-                }
-                if (activeRecordCounter + deletedRecordCounter == PAGE_LENGTH - 1) {
-                    String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
-                            + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-                    newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-                    System.out.println("Reading page #" + pageCounter + ".");
-                    deletedRecordCounter = 0;
-                    activeRecordCounter = 0;
+                else if (keyField == stringToData(currentRecord.substring(0, FIELD_DATA_LENGTH))) {
+                    deleted = true;
                 }
             }
+            for (int j = 1; j < numberOfRecords; j++) {
+                currentRecord = iterator.next();
+                if (deleted) {
+                    iterator.previous();
+                    iterator.previous();
+                    iterator.set(currentRecord);
+                    iterator.next();
+                    iterator.next();
+                }
+                else if (keyField == stringToData(currentRecord.substring(0, FIELD_DATA_LENGTH))) {
+                    deleted = true;
+                }
+            }
+            records = numberOfRecords;
         }
-        newFile.add(record);
-        deletedRecordCounter++;
-        String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(++pageCounter, NUMBER_OF_PAGES_LENGTH)
-                + dataToString(activeRecordCounter, NUMBER_OF_RECORDS_LENGTH) + dataToString(deletedRecordCounter, NUMBER_OF_RECORDS_LENGTH);
-        newFile.add((pageCounter - 1) * PAGE_LENGTH, pageHeader);
-        String newFileHeader = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(pageCounter, NUMBER_OF_PAGES_LENGTH)
-                + fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
-        newFile.addFirst(newFileHeader);
-        writeFile(typeName, newFile);
+        file.removeLast();
+        records--;
+        if (records == -1) {
+            file.removeLast();
+            numberOfPages--;
+            records = TYPE_PAGE_LENGTH - 2;
+            emptyPage = true;
+        }
+        String lastPageHeader = file.get((numberOfPages - 1) * TYPE_PAGE_LENGTH);
+        file.set((numberOfPages - 1) * TYPE_PAGE_LENGTH, lastPageHeader.substring(0, TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(records, TYPE_NUMBER_OF_RECORDS_LENGTH));
+        writeFile(typeName, file);
         System.out.println("Record is deleted.");
+        return emptyPage;
     }
 
-    private static void deleteType() throws FileNotFoundException {
+    /*private static void deleteType() throws FileNotFoundException {
         System.out.println("Enter the type name.");
         String typeName = CONSOLE.nextLine();
-        LinkedList<String> catalog = readFile(SYSTEM_CATALOG_FILENAME.split("\\.")[0]);
+        LinkedList<String> catalog = readFile(SC_FILENAME.split("\\.")[0]);
         String catalogHeader = catalog.get(0), systemName = stringToName(catalogHeader.substring(0, SYSTEM_NAME_LENGTH));
-        int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_TYPES_LENGTH));
+        int numberOfTypes = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH));
         boolean existType = false;
         for (ListIterator<String> iterator = catalog.listIterator(); iterator.hasNext();) {
             if (iterator.next().equals(typeName)) {
                 existType = true;
                 LinkedList<String> file = new LinkedList<>();
-                String oldFileHeader = readFile(typeName).get(0), fileHeader = dataToString(0, USAGE_STATUS_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
-                        + oldFileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH);
+                String oldFileHeader = readFile(typeName).get(0), fileHeader = dataToString(0, USAGE_STATUS_LENGTH) + dataToString(1, SC_NUMBER_OF_PAGES_LENGTH)
+                        + oldFileHeader.substring(USAGE_STATUS_LENGTH + SC_NUMBER_OF_PAGES_LENGTH);
                 file.add(fileHeader);
-                String pageHeader = nameToString("", PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, NUMBER_OF_PAGES_LENGTH)
-                        + dataToString(0, NUMBER_OF_RECORDS_LENGTH) + dataToString(0, NUMBER_OF_RECORDS_LENGTH);
+                String pageHeader = nameToString("", TYPE_PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, SC_NUMBER_OF_PAGES_LENGTH)
+                        + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH) + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH);
                 file.add(pageHeader);
                 writeFile(typeName, file);
                 iterator.remove();
@@ -339,38 +249,21 @@ public class DBMS {
             System.out.println("ERROR: No such type.");
         }
         else {
-            catalogHeader = nameToString(systemName, SYSTEM_NAME_LENGTH) + dataToString(numberOfTypes - 1, NUMBER_OF_TYPES_LENGTH);
+            catalogHeader = nameToString(systemName, SYSTEM_NAME_LENGTH) + dataToString(numberOfTypes - 1, SC_NUMBER_OF_RECORDS_LENGTH);
             catalog.set(0, catalogHeader);
-            writeFile(SYSTEM_CATALOG_FILENAME.split("\\.")[0], catalog);
+            writeFile(SC_FILENAME.split("\\.")[0], catalog);
         }
-    }
-
+    }*/
     private static String getFieldValues(int keyField, int numberOfFields) {
-        String record = dataToString(1, USAGE_STATUS_LENGTH) + dataToString(keyField, FIELD_DATA_LENGTH);
+        String record = dataToString(keyField, FIELD_DATA_LENGTH);
         for (int i = 2; i <= numberOfFields; i++) {
             System.out.println("Enter " + i + "'th field value.");
             record += dataToString(Integer.parseInt(CONSOLE.nextLine()), FIELD_DATA_LENGTH);
         }
-        for (int i = numberOfFields; i < MAX_NUMBER_OF_FIELDS; i++) {
+        for (int i = numberOfFields; i < FIELD_MAX_NUMBER; i++) {
             record += dataToString(0, FIELD_DATA_LENGTH);
         }
         return record;
-    }
-
-    private static void listTypes() throws FileNotFoundException {
-        ListIterator<String> iterator = readFile(SYSTEM_CATALOG_FILENAME).listIterator();
-        String catalogHeader = iterator.next();
-        int numberOfPages = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + NUMBER_OF_PAGES_LENGTH));
-        for (int i = 0; i < numberOfPages; i++) {
-            String pageHeader = iterator.next();
-            System.out.println("Reading system catalog page #" + stringToData(pageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH,
-                    SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH)) + ".");
-            int numberOfTypes = stringToData(pageHeader.substring(SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH,
-                    SYSTEM_CATALOG_PAGE_UNUSED_SPACE_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_TYPES_LENGTH));
-            for (int j = 0; j < numberOfTypes; j++) {
-                System.out.println(stringToName(iterator.next()));
-            }
-        }
     }
 
     private static String nameToString(String name, int desiredLength) {
@@ -383,9 +276,8 @@ public class DBMS {
     }
 
     private static void printFieldValues(int numberOfFields, String record) {
-        int offset = USAGE_STATUS_LENGTH;
         for (int i = 0; i < numberOfFields; i++) {
-            System.out.print(stringToData(record.substring(offset + i * FIELD_DATA_LENGTH, offset + (i + 1) * FIELD_DATA_LENGTH)) + "\t");
+            System.out.print(stringToData(record.substring(i * FIELD_DATA_LENGTH, (i + 1) * FIELD_DATA_LENGTH)) + "\t");
         }
         System.out.println();
     }
@@ -400,26 +292,34 @@ public class DBMS {
         return file;
     }
 
-    private static void searchRecord(String typeName, String operator, int value) throws FileNotFoundException {
+    private static void searchRecord(String scRecord, String operator, int value, int numberOfPages, int numberOfFields) throws FileNotFoundException {
+        String typeName = stringToName(scRecord.substring(0, TYPE_NAME_LENGTH));
         ListIterator<String> iterator = readFile(typeName).listIterator();
-        String fileHeader = iterator.next();
-        int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
-        int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
-                USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
-        int offset = USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH;
+        int offset = TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH;
         for (int i = 0; i < numberOfFields; i++) {
-            System.out.print(stringToName(fileHeader.substring(offset + i * FIELD_NAME_LENGTH, offset + (i + 1) * FIELD_NAME_LENGTH) + "\t"));
+            System.out.print(stringToName(scRecord.substring(offset + i * FIELD_NAME_LENGTH, offset + (i + 1) * FIELD_NAME_LENGTH) + "\t"));
         }
         System.out.println();
         for (int i = 0; i < numberOfPages; i++) {
             String pageHeader = iterator.next();
-            System.out.println("Reading page #" + stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
-            int numberOfActiveRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
-                    PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-            for (int j = 0; j < numberOfActiveRecords; j++) {
+            System.out.println("Reading page #" + stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH)) + ".");
+            int numberOfRecords = stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + TYPE_NUMBER_OF_RECORDS_LENGTH));
+            for (int j = 0; j < numberOfRecords; j++) {
                 String record = iterator.next();
-                int keyField = stringToData(record.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH));
-                if (operator.equals("<")) {
+                int keyField = stringToData(record.substring(0, FIELD_DATA_LENGTH));
+                if (operator.equals("L")) {
+                    printFieldValues(numberOfFields, record);
+                }
+                else if (operator.equals("=") && keyField == value) {
+                    printFieldValues(numberOfFields, record);
+                    return;
+                }
+                else if (operator.equals(">") && keyField > value) {
+                    printFieldValues(numberOfFields, record);
+                }
+                else if (operator.equals("<")) {
                     if (keyField < value) {
                         printFieldValues(numberOfFields, record);
                     }
@@ -427,19 +327,6 @@ public class DBMS {
                         return;
                     }
                 }
-                else if (operator.equals(">") && keyField > value) {
-                    printFieldValues(numberOfFields, record);
-                }
-                else if (operator.equals("=") && keyField == value) {
-                    printFieldValues(numberOfFields, record);
-                    return;
-                }
-                else if (operator.equals("L")) {
-                    printFieldValues(numberOfFields, record);
-                }
-            }
-            if (numberOfActiveRecords < PAGE_LENGTH - 1) {
-                break;
             }
         }
     }
@@ -456,23 +343,74 @@ public class DBMS {
         return s.substring(i);
     }
 
-    private static void updateRecord(String typeName) throws FileNotFoundException {
+    private static void systemCatalog(String typeName, int operation) throws FileNotFoundException {
+        LinkedList<String> catalog = readFile(SC_FILENAME);
+        ListIterator<String> iterator = catalog.listIterator();
+        String catalogHeader = iterator.next();
+        int numberOfPages = stringToData(catalogHeader.substring(SYSTEM_NAME_LENGTH, SYSTEM_NAME_LENGTH + SC_NUMBER_OF_PAGES_LENGTH));
+        for (int i = 0; i < numberOfPages; i++) {
+            String pageHeader = iterator.next();
+            System.out.println("Reading system catalog page #" + stringToData(pageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH,
+                    SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)) + ".");
+            int numberOfRecords = stringToData(pageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
+                    SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH));
+            for (int j = 0; j < numberOfRecords; j++) {
+                String record = iterator.next(), name = stringToName(record.substring(0, TYPE_NAME_LENGTH));
+                if (operation == 6) {
+                    System.out.println(name);
+                }
+                else if (typeName.equals(name)) {
+                    int numberOfTypePages = stringToData(record.substring(TYPE_NAME_LENGTH, TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH));
+                    int numberOfFields = stringToData(record.substring(TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+                            TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
+                    switch (operation) {
+                        case 1:
+                            if (createRecord(record, numberOfTypePages, numberOfFields)) {
+                                iterator.set(record.substring(0, TYPE_NAME_LENGTH) + dataToString(++numberOfTypePages, TYPE_NUMBER_OF_PAGES_LENGTH)
+                                        + record.substring(TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH));
+                                writeFile(SC_FILENAME, catalog);
+                            }
+                            return;
+                        case 2:
+                            if (deleteRecord(record, numberOfTypePages)) {
+                                iterator.set(record.substring(0, TYPE_NAME_LENGTH) + dataToString(--numberOfTypePages, TYPE_NUMBER_OF_PAGES_LENGTH)
+                                        + record.substring(TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH));
+                                writeFile(SC_FILENAME, catalog);
+                            }
+                            return;
+                        case 3:
+                            updateRecord(typeName, numberOfTypePages, numberOfFields);
+                            return;
+                        case 4:
+                            System.out.println("Enter search operator (<, >, =).");
+                            String operator = CONSOLE.nextLine();
+                            System.out.println("Enter searched value.");
+                            int value = Integer.parseInt(CONSOLE.nextLine());
+                            searchRecord(record, operator, value, numberOfTypePages, numberOfFields);
+                            return;
+                        case 5:
+                            searchRecord(record, "L", 0, numberOfTypePages, numberOfFields);
+                            return;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void updateRecord(String typeName, int numberOfPages, int numberOfFields) throws FileNotFoundException {
         LinkedList<String> file = readFile(typeName);
         ListIterator<String> iterator = file.listIterator();
-        String fileHeader = iterator.next();
-        int numberOfPages = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH));
-        int numberOfFields = stringToData(fileHeader.substring(USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH,
-                USAGE_STATUS_LENGTH + NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
         System.out.println("Enter key field.");
         int keyField = Integer.parseInt(CONSOLE.nextLine());
         for (int i = 0; i < numberOfPages; i++) {
             String pageHeader = iterator.next();
-            System.out.println("Reading page #" + stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH, PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH)) + ".");
-            int numberOfActiveRecords = stringToData(pageHeader.substring(PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH,
-                    PAGE_UNUSED_SPACE_LENGTH + PAGE_NUMBER_LENGTH + NUMBER_OF_RECORDS_LENGTH));
-            for (int j = 0; j < numberOfActiveRecords; j++) {
+            System.out.println("Reading page #" + stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH)) + ".");
+            int numberOfRecords = stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+                    TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + TYPE_NUMBER_OF_RECORDS_LENGTH));
+            for (int j = 0; j < numberOfRecords; j++) {
                 String oldRecord = iterator.next();
-                if (stringToData(oldRecord.substring(USAGE_STATUS_LENGTH, USAGE_STATUS_LENGTH + FIELD_DATA_LENGTH)) == keyField) {
+                if (stringToData(oldRecord.substring(0, FIELD_DATA_LENGTH)) == keyField) {
                     iterator.set(getFieldValues(keyField, numberOfFields));
                     writeFile(typeName, file);
                     System.out.println("Record is updated.");
