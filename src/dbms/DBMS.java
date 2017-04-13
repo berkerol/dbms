@@ -24,8 +24,6 @@ public class DBMS {
     private static final int SC_PAGE_SIZE = 1024;
     private static final int SC_PAGE_UNUSED_SPACE_LENGTH = 8;
     private static final int SC_PAGE_HEADER_SIZE = SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH;
-    private static final int SYSTEM_NAME_LENGTH = 50;
-    private static final int SC_HEADER_SIZE = SYSTEM_NAME_LENGTH + SC_NUMBER_OF_PAGES_LENGTH;
     private static final int TYPE_NAME_LENGTH = 25;
     private static final int TYPE_NUMBER_OF_PAGES_LENGTH = 2;
     private static final int SC_RECORD_SIZE = TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH + FIELD_MAX_NUMBER * FIELD_NAME_LENGTH;
@@ -39,16 +37,16 @@ public class DBMS {
     public static void main(String[] args) throws IOException {
         while (true) {
             LinkedList<String> file = readSystemCatalog();
-            int numberOfPages = stringToData(file.get(0).substring(SYSTEM_NAME_LENGTH));
+            int numberOfPages = stringToData(file.get(0));
             System.out.println("1 - DDL Operations.");
             System.out.println("2 - DML Operations.");
             System.out.println("Enter any other integer to exit.");
-            switch (Integer.parseInt(CONSOLE.nextLine())) {
+            switch (stringToData(CONSOLE.nextLine())) {
                 case 1:
                     System.out.println("1 - Create a Type.");
                     System.out.println("2 - Delete a Type.");
                     System.out.println("3 - List all Types.");
-                    int operation = Integer.parseInt(CONSOLE.nextLine());
+                    int operation = stringToData(CONSOLE.nextLine());
                     String typeName = "";
                     if (operation != 3) {
                         System.out.println("Enter the type name.");
@@ -74,7 +72,7 @@ public class DBMS {
                     System.out.println("3 - Update a Record.");
                     System.out.println("4 - Search for a Record.");
                     System.out.println("5 - List all Records.");
-                    operation = Integer.parseInt(CONSOLE.nextLine());
+                    operation = stringToData(CONSOLE.nextLine());
                     System.out.println("Enter the type name.");
                     openSystemCatalog(file, numberOfPages, CONSOLE.nextLine(), operation);
                     break;
@@ -128,7 +126,7 @@ public class DBMS {
 
     private static void createType(LinkedList<String> catalog, int numberOfPages, String typeName) throws IOException {
         System.out.println("Enter the number of fields.");
-        int numberOfFields = Integer.parseInt(CONSOLE.nextLine());
+        int numberOfFields = stringToData(CONSOLE.nextLine());
         String record = nameToString(typeName, TYPE_NAME_LENGTH) + dataToString(1, TYPE_NUMBER_OF_PAGES_LENGTH)
                 + dataToString(numberOfFields, NUMBER_OF_FIELDS_LENGTH);
         for (int i = 1; i <= numberOfFields; i++) {
@@ -139,16 +137,15 @@ public class DBMS {
             record += nameToString("", FIELD_NAME_LENGTH);
         }
         catalog.add(record);
-        int cursor = (numberOfPages - 1) * SC_PAGE_LENGTH + 1;
-        String lastPageHeader = catalog.get(cursor);
+        String lastPageHeader = catalog.get((numberOfPages - 1) * SC_PAGE_LENGTH + 1);
         int numberOfRecords = stringToData(lastPageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
                 SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH)) + 1;
-        catalog.set(cursor, lastPageHeader.substring(0, SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)
+        catalog.set((numberOfPages - 1) * SC_PAGE_LENGTH + 1, lastPageHeader.substring(0, SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)
                 + dataToString(numberOfRecords, SC_NUMBER_OF_RECORDS_LENGTH));
         if (numberOfRecords == SC_PAGE_LENGTH - 1) {
             catalog.add(nameToString("", SC_PAGE_UNUSED_SPACE_LENGTH) + dataToString(++numberOfPages, SC_NUMBER_OF_PAGES_LENGTH)
                     + dataToString(0, SC_NUMBER_OF_RECORDS_LENGTH));
-            catalog.set(0, catalog.get(0).substring(0, SYSTEM_NAME_LENGTH) + dataToString(numberOfPages, SC_NUMBER_OF_PAGES_LENGTH));
+            catalog.set(0, dataToString(numberOfPages, SC_NUMBER_OF_PAGES_LENGTH));
         }
         writeFile(SC_FILENAME, catalog, numberOfPages, true);
         LinkedList<String> file = new LinkedList<>();
@@ -222,23 +219,57 @@ public class DBMS {
     private static void deleteType(LinkedList<String> catalog, int numberOfPages, String typeName) throws IOException {
         ListIterator<String> iterator = catalog.listIterator();
         iterator.next();
+        boolean deleted = false;
+        int records = 0;
         for (int i = 0; i < numberOfPages; i++) {
-            String pageHeader = iterator.next();
+            String pageHeader = iterator.next(), record;
             int numberOfRecords = stringToData(pageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
                     SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH));
-            for (int j = 0; j < numberOfRecords; j++) {
-                String record = iterator.next();
-                if (typeName.equals(stringToName(record.substring(0, TYPE_NAME_LENGTH)))) {
-                    LinkedList<String> file = new LinkedList<>();
-                    file.add(nameToString("", TYPE_PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, TYPE_NUMBER_OF_PAGES_LENGTH)
-                            + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH));
-                    writeFile(typeName, file, 1, false);
-                    iterator.set(nameToString("DELETED", TYPE_NAME_LENGTH) + record.substring(TYPE_NAME_LENGTH));
-                    writeFile(SC_FILENAME, catalog, numberOfPages, true);
-                    return;
+            if (numberOfRecords > 0) {
+                record = iterator.next();
+                if (deleted) {
+                    iterator.previous();
+                    iterator.previous();
+                    iterator.previous();
+                    iterator.set(record);
+                    iterator.next();
+                    iterator.next();
+                    iterator.next();
+                }
+                else if (typeName.equals(stringToName(record.substring(0, TYPE_NAME_LENGTH)))) {
+                    deleted = true;
                 }
             }
+            for (int j = 1; j < numberOfRecords; j++) {
+                record = iterator.next();
+                if (deleted) {
+                    iterator.previous();
+                    iterator.previous();
+                    iterator.set(record);
+                    iterator.next();
+                    iterator.next();
+                }
+                else if (typeName.equals(stringToName(record.substring(0, TYPE_NAME_LENGTH)))) {
+                    deleted = true;
+                }
+            }
+            records = numberOfRecords;
         }
+        catalog.removeLast();
+        records--;
+        if (records == -1) {
+            catalog.removeLast();
+            records = SC_PAGE_LENGTH - 2;
+            catalog.set(0, dataToString(--numberOfPages, SC_NUMBER_OF_PAGES_LENGTH));
+        }
+        String lastPageHeader = catalog.get((numberOfPages - 1) * SC_PAGE_LENGTH + 1);
+        catalog.set((numberOfPages - 1) * SC_PAGE_LENGTH + 1, lastPageHeader.substring(0, SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(records, SC_NUMBER_OF_RECORDS_LENGTH));
+        writeFile(SC_FILENAME, catalog, numberOfPages, true);
+        LinkedList<String> file = new LinkedList<>();
+        file.add(nameToString("", TYPE_PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, TYPE_NUMBER_OF_PAGES_LENGTH)
+                + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH));
+        writeFile(typeName, file, 1, false);
     }
 
     private static String nameToString(String name, int desiredLength) {
@@ -259,24 +290,30 @@ public class DBMS {
                     SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH));
             for (int j = 0; j < numberOfRecords; j++) {
                 String record = iterator.next(), name = stringToName(record.substring(0, TYPE_NAME_LENGTH));
+                int numberOfTypePages = stringToData(record.substring(TYPE_NAME_LENGTH, TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH));
+                int numberOfFields = stringToData(record.substring(TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+                        TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
                 if (operation == 6) {
-                    System.out.println(name);
+                    System.out.print("name\t" + "#pages\t" + "#fields\t");
+                    for (int k = 1; k <= numberOfFields; k++) {
+                        System.out.print(k + ".field\t");
+                    }
+                    System.out.println();
+                    System.out.print(name + "\t" + numberOfTypePages + "\t" + numberOfFields + "\t");
+                    printFieldNames(numberOfFields, record);
                 }
                 else if (typeName.equals(name)) {
-                    int numberOfTypePages = stringToData(record.substring(TYPE_NAME_LENGTH, TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH));
-                    int numberOfFields = stringToData(record.substring(TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
-                            TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH));
                     LinkedList<String> file = readType(typeName, numberOfTypePages);
                     int keyField = 0;
                     if (operation != 5) {
                         System.out.println("Enter key field.");
-                        keyField = Integer.parseInt(CONSOLE.nextLine());
+                        keyField = stringToData(CONSOLE.nextLine());
                     }
                     String newRecord = dataToString(keyField, FIELD_DATA_LENGTH);
                     if (operation == 1 || operation == 3) {
                         for (int k = 2; k <= numberOfFields; k++) {
                             System.out.println("Enter " + k + "'th field value.");
-                            newRecord += dataToString(Integer.parseInt(CONSOLE.nextLine()), FIELD_DATA_LENGTH);
+                            newRecord += dataToString(stringToData(CONSOLE.nextLine()), FIELD_DATA_LENGTH);
                         }
                         for (int k = numberOfFields; k < FIELD_MAX_NUMBER; k++) {
                             newRecord += dataToString(0, FIELD_DATA_LENGTH);
@@ -305,15 +342,28 @@ public class DBMS {
                             return;
                         case 4:
                             System.out.println("Enter search operator (<, >, =).");
-                            searchRecord(record, file, numberOfTypePages, numberOfFields, keyField, CONSOLE.nextLine());
+                            printFieldNames(numberOfFields, record);
+                            searchRecord(file, numberOfTypePages, numberOfFields, keyField, CONSOLE.nextLine());
+                            System.out.println("Records are searched.");
                             return;
                         case 5:
-                            searchRecord(record, file, numberOfTypePages, numberOfFields, 0, "L");
+                            printFieldNames(numberOfFields, record);
+                            searchRecord(file, numberOfTypePages, numberOfFields, 0, "L");
+                            System.out.println("Records are listed.");
                             return;
                     }
                 }
             }
         }
+        System.out.println("Types are listed.");
+    }
+
+    private static void printFieldNames(int numberOfFields, String record) {
+        int offset = TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH;
+        for (int i = 0; i < numberOfFields; i++) {
+            System.out.print(stringToName(record.substring(offset + i * FIELD_NAME_LENGTH, offset + (i + 1) * FIELD_NAME_LENGTH) + "\t"));
+        }
+        System.out.println();
     }
 
     private static void printFieldValues(int numberOfFields, String record) {
@@ -326,18 +376,18 @@ public class DBMS {
     private static LinkedList<String> readSystemCatalog() throws IOException {
         LinkedList<String> file = new LinkedList<>();
         RandomAccessFile raf = new RandomAccessFile(SC_FILENAME + EXTENSION, "r");
-        byte[] bytes = new byte[SC_HEADER_SIZE];
+        byte[] bytes = new byte[SC_NUMBER_OF_PAGES_LENGTH];
         raf.read(bytes);
         String header = new String(bytes);
         file.add(header);
-        int numberOfPages = Integer.parseInt(header.substring(SYSTEM_NAME_LENGTH));
+        int numberOfPages = stringToData(header);
         for (int i = 0; i < numberOfPages; i++) {
             System.out.println("Reading system catalog page #" + (i + 1) + ".");
             bytes = new byte[SC_PAGE_SIZE];
-            raf.seek(SC_HEADER_SIZE + 2 + i * SC_PAGE_SIZE);
+            raf.seek(SC_NUMBER_OF_PAGES_LENGTH + 2 + i * SC_PAGE_SIZE);
             raf.read(bytes);
             String all = new String(bytes);
-            int numberOfRecords = Integer.parseInt(all.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
+            int numberOfRecords = stringToData(all.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
                     SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH));
             for (int j = 0; j <= numberOfRecords; j++) {
                 file.add(all.split("\\r?\\n")[j]);
@@ -356,7 +406,7 @@ public class DBMS {
             raf.seek(i * TYPE_PAGE_SIZE);
             raf.read(bytes);
             String all = new String(bytes);
-            int numberOfRecords = Integer.parseInt(all.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
+            int numberOfRecords = stringToData(all.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
                     TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + TYPE_NUMBER_OF_RECORDS_LENGTH));
             for (int j = 0; j <= numberOfRecords; j++) {
                 file.add(all.split("\\r?\\n")[j]);
@@ -366,13 +416,8 @@ public class DBMS {
         return file;
     }
 
-    private static void searchRecord(String scRecord, LinkedList<String> file, int numberOfPages, int numberOfFields, int value, String operator) {
+    private static void searchRecord(LinkedList<String> file, int numberOfPages, int numberOfFields, int value, String operator) {
         ListIterator<String> iterator = file.listIterator();
-        int offset = TYPE_NAME_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + NUMBER_OF_FIELDS_LENGTH;
-        for (int i = 0; i < numberOfFields; i++) {
-            System.out.print(stringToName(scRecord.substring(offset + i * FIELD_NAME_LENGTH, offset + (i + 1) * FIELD_NAME_LENGTH) + "\t"));
-        }
-        System.out.println();
         for (int i = 0; i < numberOfPages; i++) {
             String pageHeader = iterator.next();
             int numberOfRecords = stringToData(pageHeader.substring(TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH,
@@ -437,7 +482,7 @@ public class DBMS {
             String lastPageHeader = file.get((numberOfPages - 1) * SC_PAGE_LENGTH + 1);
             int numberOfRecords = stringToData(lastPageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
                     SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH));
-            emptyBytes = SC_PAGE_SIZE - SC_PAGE_HEADER_SIZE - 2 - numberOfRecords * (SC_RECORD_SIZE + 2) - 2;
+            emptyBytes = SC_PAGE_SIZE - 2 - SC_PAGE_HEADER_SIZE - 2 - numberOfRecords * (SC_RECORD_SIZE + 2) - 2;
         }
         else {
             String lastPageHeader = file.get((numberOfPages - 1) * TYPE_PAGE_LENGTH);
