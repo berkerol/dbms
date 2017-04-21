@@ -12,29 +12,101 @@ import java.util.Scanner;
 
 public class DBMS {
 
+    /**
+     * Input of CLI.
+     */
     private static final Scanner CONSOLE = new Scanner(System.in);
+    /**
+     * Extension of all data files.
+     */
     private static final String EXTENSION = ".txt";
+    /**
+     * Size of a field data in bytes.
+     */
     private static final int FIELD_DATA_LENGTH = 4;
+    /**
+     * Max number of fields in a record.
+     */
     private static final int FIELD_MAX_NUMBER = 10;
+    /**
+     * Size of a field name in bytes.
+     */
     private static final int FIELD_NAME_LENGTH = 7;
+    /**
+     * Size of the string containing number of fields in a record in bytes.
+     */
     private static final int NUMBER_OF_FIELDS_LENGTH = 2;
+    /**
+     * System catalog file name.
+     */
     private static final String SC_FILENAME = "SystemCatalog";
+    /**
+     * Size of the string containing page number in a system catalog page header in bytes.
+     */
     private static final int SC_NUMBER_OF_PAGES_LENGTH = 2;
+    /**
+     * Size of the string containing number of records in a system catalog page in bytes.
+     */
     private static final int SC_NUMBER_OF_RECORDS_LENGTH = 2;
+    /**
+     * Total number of elements (page header + records) in a system catalog page.
+     */
     private static final int SC_PAGE_LENGTH = 11;
+    /**
+     * Size of a system catalog page in bytes.
+     */
     private static final int SC_PAGE_SIZE = 1024;
+    /**
+     * Size of the unused space (due to fixed page size) in a system catalog page.
+     */
     private static final int SC_PAGE_UNUSED_SPACE_LENGTH = 8;
+    /**
+     * Size of a system catalog page header in bytes.
+     */
     private static final int SC_PAGE_HEADER_SIZE = SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH;
+    /**
+     * Size of a type name in bytes.
+     */
     private static final int TYPE_NAME_LENGTH = 27;
+    /**
+     * Size of a system catalog record in bytes.
+     */
     private static final int SC_RECORD_SIZE = TYPE_NAME_LENGTH + NUMBER_OF_FIELDS_LENGTH + FIELD_MAX_NUMBER * FIELD_NAME_LENGTH;
+    /**
+     * Size of the string containing page number in a page header in bytes.
+     */
     private static final int TYPE_NUMBER_OF_PAGES_LENGTH = 2;
+    /**
+     * Size of the string containing number of records in a page in bytes.
+     */
     private static final int TYPE_NUMBER_OF_RECORDS_LENGTH = 2;
+    /**
+     * Total number of elements (page header + records) in a page.
+     */
     private static final int TYPE_PAGE_LENGTH = 25;
+    /**
+     * Size of a page in bytes.
+     */
     private static final int TYPE_PAGE_SIZE = 1024;
+    /**
+     * Size of the unused space (due to fixed page size) in a page.
+     */
     private static final int TYPE_PAGE_UNUSED_SPACE_LENGTH = 10;
+    /**
+     * Size of a page header in bytes.
+     */
     private static final int TYPE_PAGE_HEADER_SIZE = TYPE_PAGE_UNUSED_SPACE_LENGTH + TYPE_NUMBER_OF_PAGES_LENGTH + TYPE_NUMBER_OF_RECORDS_LENGTH;
+    /**
+     * Size of a record in bytes.
+     */
     private static final int TYPE_RECORD_SIZE = FIELD_MAX_NUMBER * FIELD_DATA_LENGTH;
+    /**
+     * Stores current number of system catalog pages (used during and updated after operations) for file I/O.
+     */
     private static int numberOfSystemCatalogPages = 0;
+    /**
+     * Stores current number of pages (used during and updated after operations) for file I/O.
+     */
     private static int numberOfTypePages = 0;
 
     public static void main(String[] args) throws IOException {
