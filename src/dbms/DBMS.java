@@ -41,11 +41,11 @@ public class DBMS {
      */
     private static final String SC_FILENAME = "SystemCatalog";
     /**
-     * Size of the string containing page number in a system catalog page header in bytes.
+     * Length of the string containing page number in a system catalog page header in bytes.
      */
     private static final int SC_NUMBER_OF_PAGES_LENGTH = 2;
     /**
-     * Size of the string containing number of records in a system catalog page in bytes.
+     * Length of the string containing number of records in a system catalog page in bytes.
      */
     private static final int SC_NUMBER_OF_RECORDS_LENGTH = 2;
     /**
@@ -73,11 +73,11 @@ public class DBMS {
      */
     private static final int SC_RECORD_SIZE = TYPE_NAME_LENGTH + NUMBER_OF_FIELDS_LENGTH + FIELD_MAX_NUMBER * FIELD_NAME_LENGTH;
     /**
-     * Size of the string containing page number in a page header in bytes.
+     * Length of the string containing page number in a page header in bytes.
      */
     private static final int TYPE_NUMBER_OF_PAGES_LENGTH = 2;
     /**
-     * Size of the string containing number of records in a page in bytes.
+     * Length of the string containing number of records in a page in bytes.
      */
     private static final int TYPE_NUMBER_OF_RECORDS_LENGTH = 2;
     /**
@@ -101,7 +101,8 @@ public class DBMS {
      */
     private static final int TYPE_RECORD_SIZE = FIELD_MAX_NUMBER * FIELD_DATA_LENGTH;
     /**
-     * Stores current number of system catalog pages (used during and updated after operations) for file I/O.
+     * Stores current number of system catalog pages (used during and updated after operations) for
+     * file I/O.
      */
     private static int numberOfSystemCatalogPages = 0;
     /**
@@ -111,11 +112,8 @@ public class DBMS {
 
     public static void main(String[] args) throws IOException {
         if (!new File(SC_FILENAME + EXTENSION).exists()) {
-            LinkedList<String> catalog = new LinkedList<>();
-            catalog.add(nameToString("", SC_PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, SC_NUMBER_OF_PAGES_LENGTH)
-                    + dataToString(0, SC_NUMBER_OF_RECORDS_LENGTH));
-            numberOfSystemCatalogPages = 1;
-            writeFile(SC_FILENAME, catalog, true);
+            createEmptyFile(SC_FILENAME, true, SC_PAGE_UNUSED_SPACE_LENGTH, SC_NUMBER_OF_PAGES_LENGTH, SC_NUMBER_OF_RECORDS_LENGTH);
+            System.out.println("System Catalog is created.");
         }
         while (true) {
             LinkedList<String> file = readFile(SC_FILENAME, true, "system catalog ", SC_PAGE_SIZE,
@@ -141,6 +139,11 @@ public class DBMS {
                             System.out.println("Type is deleted.");
                             break;
                         case 3:
+                            System.out.print("name\t" + "#fields\t");
+                            for (int i = 1; i <= FIELD_MAX_NUMBER; i++) {
+                                System.out.print(i + ".field\t");
+                            }
+                            System.out.println();
                             openSystemCatalog(file.listIterator(), "", 6);
                             break;
                         default:
@@ -167,12 +170,28 @@ public class DBMS {
         }
     }
 
-    private static void createEmptyType(String typeName) throws IOException {
+    /**
+     * Creates empty files (files without record) for system catalog and types.
+     *
+     * @param fileName name of the created file
+     * @param fileType system catalog or type file
+     * @param pageUnusedSpaceLength length of unused space in a page
+     * @param numberOfPagesLength length of the string containing page number
+     * @param numberOfRecordsLength length of the string containing number of records
+     * @throws IOException when file cannot be written
+     */
+    private static void createEmptyFile(String fileName, boolean fileType, int pageUnusedSpaceLength,
+            int numberOfPagesLength, int numberOfRecordsLength) throws IOException {
         LinkedList<String> file = new LinkedList<>();
-        file.add(nameToString("", TYPE_PAGE_UNUSED_SPACE_LENGTH) + dataToString(1, TYPE_NUMBER_OF_PAGES_LENGTH)
-                + dataToString(0, TYPE_NUMBER_OF_RECORDS_LENGTH));
-        numberOfTypePages = 1;
-        writeFile(typeName, file, false);
+        file.add(nameToString("", pageUnusedSpaceLength) + dataToString(1, numberOfPagesLength)
+                + dataToString(0, numberOfRecordsLength));
+        if (fileType) {
+            numberOfSystemCatalogPages = 1;
+        }
+        else {
+            numberOfTypePages = 1;
+        }
+        writeFile(fileName, file, fileType);
     }
 
     private static void createRecord(String typeName, LinkedList<String> file, int keyField, String newRecord) throws IOException {
@@ -218,15 +237,15 @@ public class DBMS {
     private static void createType(LinkedList<String> catalog, String typeName) throws IOException {
         System.out.println("Enter the number of fields.");
         int numberOfFields = stringToData(CONSOLE.nextLine());
-        String record = nameToString(typeName, TYPE_NAME_LENGTH) + dataToString(numberOfFields, NUMBER_OF_FIELDS_LENGTH);
+        StringBuilder record = new StringBuilder().append(nameToString(typeName, TYPE_NAME_LENGTH)).append(dataToString(numberOfFields, NUMBER_OF_FIELDS_LENGTH));
         for (int i = 1; i <= numberOfFields; i++) {
             System.out.println("Enter " + i + "'th field name.");
-            record += nameToString(CONSOLE.nextLine(), FIELD_NAME_LENGTH);
+            record.append(nameToString(CONSOLE.nextLine(), FIELD_NAME_LENGTH));
         }
         for (int i = numberOfFields; i < FIELD_MAX_NUMBER; i++) {
-            record += nameToString("", FIELD_NAME_LENGTH);
+            record.append(nameToString("", FIELD_NAME_LENGTH));
         }
-        catalog.add(record);
+        catalog.add(record.toString());
         String lastPageHeader = catalog.get((numberOfSystemCatalogPages - 1) * SC_PAGE_LENGTH);
         int numberOfRecords = stringToData(lastPageHeader.substring(SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH,
                 SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH + SC_NUMBER_OF_RECORDS_LENGTH)) + 1;
@@ -237,16 +256,22 @@ public class DBMS {
                     + dataToString(0, SC_NUMBER_OF_RECORDS_LENGTH));
         }
         writeFile(SC_FILENAME, catalog, true);
-        createEmptyType(typeName);
+        createEmptyFile(typeName, false, TYPE_PAGE_UNUSED_SPACE_LENGTH, TYPE_NUMBER_OF_PAGES_LENGTH, TYPE_NUMBER_OF_RECORDS_LENGTH);
     }
 
+    /**
+     * Converts integers to fixed size strings by adding zeroes to left.
+     *
+     * @param data integer to be converted to fixed size string
+     * @param desiredLength length of fixed size string
+     * @return fixed size string
+     */
     private static String dataToString(int data, int desiredLength) {
-        int dataLength = ("" + data).length();
-        String s = "";
-        for (int i = 0; i < desiredLength - dataLength; i++) {
-            s += "0";
+        StringBuilder s = new StringBuilder();
+        for (int i = 0; i < desiredLength - ("" + data).length(); i++) {
+            s.append("0");
         }
-        return s + ("" + data);
+        return s.append(data).toString();
     }
 
     private static void deleteRecord(String typeName, LinkedList<String> file, int keyField) throws IOException {
@@ -349,18 +374,34 @@ public class DBMS {
         catalog.set((numberOfSystemCatalogPages - 1) * SC_PAGE_LENGTH, lastPageHeader.substring(0, SC_PAGE_UNUSED_SPACE_LENGTH + SC_NUMBER_OF_PAGES_LENGTH)
                 + dataToString(records, SC_NUMBER_OF_RECORDS_LENGTH));
         writeFile(SC_FILENAME, catalog, true);
-        createEmptyType(typeName);
+        createEmptyFile(typeName, false, TYPE_PAGE_UNUSED_SPACE_LENGTH, TYPE_NUMBER_OF_PAGES_LENGTH, TYPE_NUMBER_OF_RECORDS_LENGTH);
     }
 
+    /**
+     * Converts names to fixed size strings by adding spaces to left.
+     *
+     * @param data name to be converted to fixed size string
+     * @param desiredLength length of fixed size string
+     * @return fixed size string
+     */
     private static String nameToString(String name, int desiredLength) {
-        int nameLength = name.length();
-        String s = "";
-        for (int i = 0; i < desiredLength - nameLength; i++) {
-            s += " ";
+        StringBuilder s = new StringBuilder();
+        for (int i = 0; i < desiredLength - name.length(); i++) {
+            s.append(" ");
         }
-        return s + name;
+        return s.append(name).toString();
     }
 
+    /**
+     * Executes DML operations (also used for listing types). Finds the related system catalog
+     * record, opens the type file, takes the required inputs from user then calls the related
+     * method.
+     *
+     * @param iterator iterator of the list of the system catalog
+     * @param typeName name of the type used in DML operations
+     * @param operation operation type (create, delete, update, search, list)
+     * @throws IOException when type file cannot be read or written
+     */
     private static void openSystemCatalog(ListIterator<String> iterator, String typeName, int operation) throws IOException {
         for (int i = 0; i < numberOfSystemCatalogPages; i++) {
             String pageHeader = iterator.next();
@@ -370,11 +411,6 @@ public class DBMS {
                 String record = iterator.next(), name = stringToName(record.substring(0, TYPE_NAME_LENGTH));
                 int numberOfFields = stringToData(record.substring(TYPE_NAME_LENGTH, TYPE_NAME_LENGTH + NUMBER_OF_FIELDS_LENGTH));
                 if (operation == 6) {
-                    System.out.print("name\t" + "#fields\t");
-                    for (int k = 1; k <= numberOfFields; k++) {
-                        System.out.print(k + ".field\t");
-                    }
-                    System.out.println();
                     System.out.print(name + "\t" + numberOfFields + "\t");
                     printFieldNames(numberOfFields, record);
                 }
@@ -386,19 +422,19 @@ public class DBMS {
                         System.out.println("Enter key field.");
                         keyField = stringToData(CONSOLE.nextLine());
                     }
-                    String newRecord = dataToString(keyField, FIELD_DATA_LENGTH);
+                    StringBuilder newRecord = new StringBuilder().append(dataToString(keyField, FIELD_DATA_LENGTH));
                     if (operation == 1 || operation == 3) {
                         for (int k = 2; k <= numberOfFields; k++) {
                             System.out.println("Enter " + k + "'th field value.");
-                            newRecord += dataToString(stringToData(CONSOLE.nextLine()), FIELD_DATA_LENGTH);
+                            newRecord.append(dataToString(stringToData(CONSOLE.nextLine()), FIELD_DATA_LENGTH));
                         }
                         for (int k = numberOfFields; k < FIELD_MAX_NUMBER; k++) {
-                            newRecord += dataToString(0, FIELD_DATA_LENGTH);
+                            newRecord.append(dataToString(0, FIELD_DATA_LENGTH));
                         }
                     }
                     switch (operation) {
                         case 1:
-                            createRecord(typeName, file, keyField, newRecord);
+                            createRecord(typeName, file, keyField, newRecord.toString());
                             System.out.println("Record is created.");
                             return;
                         case 2:
@@ -406,13 +442,14 @@ public class DBMS {
                             System.out.println("Record is deleted.");
                             return;
                         case 3:
-                            updateRecord(typeName, file, keyField, newRecord);
+                            updateRecord(typeName, file, keyField, newRecord.toString());
                             System.out.println("Record is updated.");
                             return;
                         case 4:
                             System.out.println("Enter search operator (<, >, =).");
+                            String operator = CONSOLE.nextLine();
                             printFieldNames(numberOfFields, record);
-                            searchRecord(file.listIterator(), numberOfFields, keyField, CONSOLE.nextLine());
+                            searchRecord(file.listIterator(), numberOfFields, keyField, operator);
                             System.out.println("Records are searched.");
                             return;
                         case 5:
@@ -499,10 +536,22 @@ public class DBMS {
         }
     }
 
+    /**
+     * Converts fixed size strings to integers.
+     *
+     * @param s string to be converted to integer
+     * @return integer
+     */
     private static int stringToData(String s) {
         return Integer.parseInt(s);
     }
 
+    /**
+     * Converts fixed size strings to names by removing spaces in the beginning.
+     *
+     * @param s string to be converted to name
+     * @return name
+     */
     private static String stringToName(String s) {
         int i = 0;
         while (s.charAt(i) == ' ') {
