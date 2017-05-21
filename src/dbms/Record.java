@@ -74,13 +74,17 @@ public class Record {
     }
 
     int compareTo(String s) {
-        switch (types[0]) {
+        return compareTo(0, s);
+    }
+    
+    int compareTo(int index, String s) {
+        switch (types[index]) {
             case 0:
-                return (new Integer(this.fields[0])).compareTo((new Integer(s)));
+                return (new Integer(this.fields[index])).compareTo((new Integer(s)));
             case 1:
-                return (new Double(this.fields[0])).compareTo((new Double(s)));
+                return (new Double(this.fields[index])).compareTo((new Double(s)));
             default:
-                return this.fields[0].compareTo(s);
+                return this.fields[index].compareTo(s);
         }
     }
 

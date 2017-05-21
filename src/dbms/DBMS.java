@@ -58,12 +58,15 @@ public class DBMS {
                 case 1:
                     System.out.println("1 - Create a Type.");
                     System.out.println("2 - Delete a Type.");
-                    System.out.println("3 - List all Types.");
+                    System.out.println("3 - Update a Type.");
+                    System.out.println("4 - Search for a Type.");
+                    System.out.println("5 - List all Types.");
                     System.out.println("Enter any other integer to go back.");
                     switch (Integer.parseInt(CONSOLE.nextLine())) {
                         case 1:
                             System.out.println("Enter the type name.");
-                            createType(file, CONSOLE.nextLine());
+                            String typeName = CONSOLE.nextLine();
+                            createType(file, typeName, getTypeAttributes(typeName));
                             System.out.println("Type is created.");
                             break;
                         case 2:
@@ -72,7 +75,21 @@ public class DBMS {
                             System.out.println("Type is deleted.");
                             break;
                         case 3:
-                            openSystemCatalog(file, "", 6);
+                            System.out.println("Enter the type name.");
+                            typeName = CONSOLE.nextLine();
+                            updateType(file, typeName, getTypeAttributes(typeName));
+                            System.out.println("Type is updated.");
+                            break;
+                        case 4:
+                            System.out.println("Enter searched value.");
+                            String value = CONSOLE.nextLine();
+                            System.out.println("Enter search operator (<, >, =).");
+                            openSystemCatalog(file, value, 6, CONSOLE.nextLine());
+                            System.out.println("Types are searched.");
+                            break;
+                        case 5:
+                            openSystemCatalog(file, "", 7, "");
+                            System.out.println("Types are listed.");
                             break;
                         default:
                             break;
@@ -90,7 +107,7 @@ public class DBMS {
                         break;
                     }
                     System.out.println("Enter the type name.");
-                    openSystemCatalog(file, CONSOLE.nextLine(), operation);
+                    openSystemCatalog(file, CONSOLE.nextLine(), operation, "");
                     break;
                 default:
                     return;
@@ -98,7 +115,7 @@ public class DBMS {
         }
     }
 
-    private static void createRecord(String typeName, ArrayList<Record> file, Record newRecord) throws IOException {
+    private static void createRecord(ArrayList<Record> file, String typeName, Record newRecord) throws IOException {
         ListIterator<Record> iterator = file.listIterator();
         boolean inserted = false;
         for (int i = 0; i < file.size(); i++) {
@@ -115,7 +132,50 @@ public class DBMS {
         writeType(typeName, file);
     }
 
-    private static void createType(ArrayList<String> catalog, String typeName) throws IOException {
+    private static void createType(ArrayList<String> file, String typeName, String newRecord) throws IOException {
+        ListIterator<String> iterator = file.listIterator();
+        boolean inserted = false;
+        for (int i = 0; i < file.size(); i++) {
+            String s = iterator.next();
+            if (typeName.compareTo(s) < 0) {
+                file.add(i, newRecord);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted) {
+            file.add(newRecord);
+        }
+        writeFile(SYSTEM_CATALOG, file);
+        writeFile(typeName, new ArrayList<>());
+    }
+
+    private static void deleteRecord(ArrayList<Record> file, String typeName, String keyField) throws IOException {
+        ListIterator<Record> iterator = file.listIterator();
+        for (int i = 0; i < file.size(); i++) {
+            Record r = iterator.next();
+            if (r.compareTo(keyField) == 0) {
+                file.remove(i);
+                break;
+            }
+        }
+        writeType(typeName, file);
+    }
+
+    private static void deleteType(ArrayList<String> file, String typeName) throws IOException {
+        ListIterator<String> iterator = file.listIterator();
+        for (int i = 0; i < file.size(); i++) {
+            String record = iterator.next();
+            if (typeName.equals(toData(record.substring(0, TYPE_NAME_LENGTH)))) {
+                file.remove(i);
+                break;
+            }
+        }
+        writeFile(SYSTEM_CATALOG, file);
+        writeFile(typeName, new ArrayList<>());
+    }
+
+    private static String getTypeAttributes(String typeName) {
         System.out.println("Enter the number of fields.");
         int numberOfFields = Integer.parseInt(CONSOLE.nextLine());
         StringBuilder record = new StringBuilder().append(toString(typeName, TYPE_NAME_LENGTH)).append(toString(("" + numberOfFields), NUMBER_OF_FIELDS_LENGTH));
@@ -131,34 +191,7 @@ public class DBMS {
             System.out.println("Enter " + i + "'th field length.");
             record.append(toString(CONSOLE.nextLine(), FIELD_LENGTH_LENGTH));
         }
-        catalog.add(record.toString());
-        writeFile(SYSTEM_CATALOG, catalog);
-        writeFile(typeName, new ArrayList<>());
-    }
-
-    private static void deleteRecord(String typeName, ArrayList<Record> file, String keyField) throws IOException {
-        ListIterator<Record> iterator = file.listIterator();
-        for (int i = 0; i < file.size(); i++) {
-            Record r = iterator.next();
-            if (r.compareTo(keyField) == 0) {
-                file.remove(i);
-                break;
-            }
-        }
-        writeType(typeName, file);
-    }
-
-    private static void deleteType(ArrayList<String> catalog, String typeName) throws IOException {
-        ListIterator<String> iterator = catalog.listIterator();
-        for (int i = 0; i < catalog.size(); i++) {
-            String record = iterator.next();
-            if (typeName.equals(toData(record.substring(0, TYPE_NAME_LENGTH)))) {
-                catalog.remove(i);
-                break;
-            }
-        }
-        writeFile(SYSTEM_CATALOG, catalog);
-        writeFile(typeName, new ArrayList<>());
+        return record.toString();
     }
 
     /**
@@ -171,12 +204,12 @@ public class DBMS {
      * @param operation operation type (create, delete, update, search, list)
      * @throws IOException when type file cannot be read or written
      */
-    private static void openSystemCatalog(ArrayList<String> catalog, String typeName, int operation) throws IOException {
+    private static void openSystemCatalog(ArrayList<String> catalog, String typeName, int operation, String operator) throws IOException {
         for (String s : catalog) {
             int cursor = 0;
             String name = toData(s.substring(cursor, cursor + TYPE_NAME_LENGTH));
             cursor += TYPE_NAME_LENGTH;
-            int numberOfFields = Integer.parseInt(DBMS.toData(s.substring(cursor, cursor + NUMBER_OF_FIELDS_LENGTH)));
+            int numberOfFields = Integer.parseInt(toData(s.substring(cursor, cursor + NUMBER_OF_FIELDS_LENGTH)));
             cursor += NUMBER_OF_FIELDS_LENGTH;
             Record.numberOfFields(numberOfFields);
             String names = s.substring(cursor, cursor + numberOfFields * FIELD_NAME_LENGTH);
@@ -188,13 +221,29 @@ public class DBMS {
             String lengths = s.substring(cursor, cursor + numberOfFields * FIELD_LENGTH_LENGTH);
             Record.lengths(FIELD_LENGTH_LENGTH, lengths);
             if (operation == 6) {
-                System.out.print(name + "\t" + numberOfFields + "\t");
-                printFieldNames(numberOfFields, names, types, lengths);
+                if (operator.equals("=") && name.compareTo(typeName) == 0) {
+                    printFieldNames(name, numberOfFields, names, types, lengths);
+                    return;
+                }
+                else if (operator.equals(">") && name.compareTo(typeName) > 0) {
+                    printFieldNames(name, numberOfFields, names, types, lengths);
+                }
+                else if (operator.equals("<")) {
+                    if (name.compareTo(typeName) < 0) {
+                        printFieldNames(name, numberOfFields, names, types, lengths);
+                    }
+                    else {
+                        return;
+                    }
+                }
+            }
+            else if (operation == 7) {
+                printFieldNames(name, numberOfFields, names, types, lengths);
             }
             else if (typeName.equals(name)) {
                 ArrayList<Record> file = readType(typeName);
                 String keyField = "";
-                if (operation != 5) {
+                if (operation == 1 || operation == 2 || operation == 3) {
                     System.out.println("Enter key field.");
                     keyField = CONSOLE.nextLine();
                 }
@@ -207,36 +256,40 @@ public class DBMS {
                 }
                 switch (operation) {
                     case 1:
-                        createRecord(typeName, file, new Record(newRecord.toString()));
+                        createRecord(file, typeName, new Record(newRecord.toString()));
                         System.out.println("Record is created.");
                         return;
                     case 2:
-                        deleteRecord(typeName, file, keyField);
+                        deleteRecord(file, typeName, keyField);
                         System.out.println("Record is deleted.");
                         return;
                     case 3:
-                        updateRecord(typeName, file, new Record(newRecord.toString()));
+                        updateRecord(file, typeName, new Record(newRecord.toString()));
                         System.out.println("Record is updated.");
                         return;
                     case 4:
+                        System.out.println("Enter searched field.");
+                        int index = Integer.parseInt(CONSOLE.nextLine());
+                        System.out.println("Enter searched value.");
+                        String value = CONSOLE.nextLine();
                         System.out.println("Enter search operator (<, >, =).");
-                        String operator = CONSOLE.nextLine();
-                        printFieldNames(numberOfFields, names, types, lengths);
-                        searchRecord(file, keyField, operator);
+                        operator = CONSOLE.nextLine();
+                        printFieldNames(name, numberOfFields, names, types, lengths);
+                        searchRecord(file, index - 1, value, operator);
                         System.out.println("Records are searched.");
                         return;
                     case 5:
-                        printFieldNames(numberOfFields, names, types, lengths);
-                        searchRecord(file, "", "L");
+                        printFieldNames(name, numberOfFields, names, types, lengths);
+                        searchRecord(file, 0, "", "L");
                         System.out.println("Records are listed.");
                         return;
                 }
             }
         }
-        System.out.println("Types are listed.");
     }
 
-    private static void printFieldNames(int numberOfFields, String names, String types, String lengths) {
+    private static void printFieldNames(String name, int numberOfFields, String names, String types, String lengths) {
+        System.out.print(name + "\t" + numberOfFields + "\t");
         for (int i = 0; i < numberOfFields; i++) {
             System.out.print((i + 1) + ".field name: " + toData(names.substring(i * FIELD_NAME_LENGTH, (i + 1) * FIELD_NAME_LENGTH)) + "\t");
             System.out.print("type: " + toData(types.substring(i * FIELD_TYPE_LENGTH, (i + 1) * FIELD_TYPE_LENGTH)) + "\t");
@@ -258,20 +311,20 @@ public class DBMS {
         return type;
     }
 
-    private static void searchRecord(ArrayList<Record> file, String value, String operator) {
+    private static void searchRecord(ArrayList<Record> file, int index, String value, String operator) {
         for (Record record : file) {
             if (operator.equals("L")) {
                 record.printFields();
             }
-            else if (operator.equals("=") && record.compareTo(value) == 0) {
+            else if (operator.equals("=") && record.compareTo(index, value) == 0) {
                 record.printFields();
                 return;
             }
-            else if (operator.equals(">") && record.compareTo(value) > 0) {
+            else if (operator.equals(">") && record.compareTo(index, value) > 0) {
                 record.printFields();
             }
             else if (operator.equals("<")) {
-                if (record.compareTo(value) < 0) {
+                if (record.compareTo(index, value) < 0) {
                     record.printFields();
                 }
                 else {
@@ -311,7 +364,7 @@ public class DBMS {
         return s.append(data).toString();
     }
 
-    private static void updateRecord(String typeName, ArrayList<Record> file, Record newRecord) throws IOException {
+    private static void updateRecord(ArrayList<Record> file, String typeName, Record newRecord) throws IOException {
         ListIterator<Record> iterator = file.listIterator();
         for (int i = 0; i < file.size(); i++) {
             Record r = iterator.next();
@@ -321,6 +374,18 @@ public class DBMS {
             }
         }
         writeType(typeName, file);
+    }
+
+    private static void updateType(ArrayList<String> file, String typeName, String newRecord) throws IOException {
+        ListIterator<String> iterator = file.listIterator();
+        for (int i = 0; i < file.size(); i++) {
+            String s = iterator.next();
+            if (typeName.compareTo(s) == 0) {
+                file.add(i, newRecord);
+                break;
+            }
+        }
+        writeFile(SYSTEM_CATALOG, file);
     }
 
     private static void writeFile(String fileName, ArrayList<String> file) throws IOException {
