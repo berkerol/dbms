@@ -76,7 +76,7 @@ public class Record {
     int compareTo(String s) {
         return compareTo(0, s);
     }
-    
+
     int compareTo(int index, String s) {
         switch (types[index]) {
             case 0:
