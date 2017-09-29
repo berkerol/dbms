@@ -14,7 +14,7 @@ public class DBMS {
     /**
      * Input of CLI.
      */
-    private static final Scanner CONSOLE = new Scanner(System.in);
+    private static final Scanner CONSOLE = new Scanner(System.in, "UTF-8");
     /**
      * Extension of all data files.
      */

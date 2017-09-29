@@ -80,9 +80,9 @@ public class Record {
     int compareTo(int index, String s) {
         switch (types[index]) {
             case 0:
-                return (new Integer(this.fields[index])).compareTo((new Integer(s)));
+                return (Integer.valueOf(this.fields[index])).compareTo((Integer.valueOf(s)));
             case 1:
-                return (new Double(this.fields[index])).compareTo((new Double(s)));
+                return (Double.valueOf(this.fields[index])).compareTo((Double.valueOf(s)));
             default:
                 return this.fields[index].compareTo(s);
         }
